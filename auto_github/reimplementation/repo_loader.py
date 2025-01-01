@@ -2,7 +2,7 @@ import os
 import subprocess
 from pathlib import Path
 
-class Repo:
+class Repo_base:
     def __init__(self, repo_link: str, repo_path: str, model: str = "gpt-4o-mini") -> None:
         """Initialize the Repository instance with the given path and model."""
         self.repo_link: str = repo_link
@@ -62,11 +62,76 @@ class Repo:
         return markdown
 
 
+class Repo_ML(Repo_base):
+
+    def __init__(self, repo_link: str, repo_path: str, model: str = "gpt-4o-mini") -> None:
+        super().__init__(repo_link,repo_path,model)
+        self.supported_main_file_types: list[str] = ['.py' , '.json']
+        self.supported_environment_file_types: list[str] = ['.yml' , '.yaml']
+        self.supported_data_file_types: list[str] = ['.csv' , '.tsv' , '.json']
+        # TODO: complete the file files
+
+
+    def load_file_contents(self, targets: list[str] = None, mode="main") -> dict[str, str]:
+        """
+        Load the contents of files in the repository into a dictionary.
+
+        Args:
+            targets (list[str], optional): List of file paths to load. If None, loads all files of main types.
+            mode (str, optional): Mode to determine which files to load. Defaults to "main".
+
+        Returns:
+            dict[str, str]: Dictionary with file paths as keys (with "repo_root" replacing the actual repo path)
+                           and file contents as values.
+        """
+
+        if targets is None and mode == "main":
+            # Load all files with extensions in self.main_file_types
+            for root, _, files in os.walk(self.repo_path):
+                for file in files:
+                    if any(file.endswith(ext) for ext in self.supported_main_file_types):
+                        file_path = os.path.join(root, file)
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                # Replace self.repo_path with "repo_root" in the file path
+                                relative_path = os.path.relpath(file_path, self.repo_path)
+                                repo_root_path = os.path.join("repo_root", relative_path)
+                                self.file_contents[repo_root_path] = f.read()
+                        except Exception as e:
+                            print(f"Failed to read file {file_path}: {e}")
+        elif targets and isinstance(targets, list):
+            # Load only the specified files
+            for target in targets:
+                file_path = os.path.join(self.repo_path, target)
+                if os.path.isfile(file_path):
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            # Replace self.repo_path with "repo_root" in the file path
+                            relative_path = os.path.relpath(file_path, self.repo_path)
+                            repo_root_path = os.path.join("repo_root", relative_path)
+                            self.file_contents[repo_root_path] = f.read()
+                    except Exception as e:
+                        print(f"Failed to read file {file_path}: {e}")
+                else:
+                    print(f"File {file_path} does not exist.")
+
+        return self.file_contents
+
+
 if __name__ == "__main__":
     # Example usage
     repo_link = "https://github.com/example_user/example_repo.git"  # Replace with your GitHub repo URL
     repo_path = '/home/j/experiments/auto_github/sample_repos/bohb'  # Replace with your local repo path
-    repo = Repo(repo_link, repo_path)
+    repo = Repo_ML(repo_link, repo_path)
     repo.clone_repo()  # Clone the repository
     markdown_structure = repo.generate_and_get_repo_structure()  # Generate and print the structure
     print(markdown_structure)
+
+    # Load all main file types
+    file_contents = repo.load_file_contents()
+    print(file_contents)
+
+    # Load specific files
+    specific_files = ['README.md', 'src/main.py']
+    file_contents = repo.load_file_contents(targets=specific_files)
+    print(file_contents)
