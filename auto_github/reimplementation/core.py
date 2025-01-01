@@ -4,7 +4,7 @@ from typing import Optional
 
 from LLM_utils.inquiry import OpenAI_interface
 from auto_github.reimplementation.repo_loader import Repo_ML
-from auto_github.reimplementation.prompt import ReimplementationPromptML
+from auto_github.reimplementation.prompts import ReimplementationPromptML
 
 class AutoReimplementation:
     def __init__(
