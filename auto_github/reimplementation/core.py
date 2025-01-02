@@ -6,6 +6,7 @@ from LLM_utils.inquiry import OpenAI_interface
 from auto_github.reimplementation.repo_loader import Repo_ML
 from auto_github.reimplementation.prompts import ReimplementationPromptML
 from auto_github.utils.stored_info import Storage
+from auto_github.reimplementation.sequence_tests import sequence_tests_LM
 
 class AutoReimplementation:
     def __init__(
@@ -30,6 +31,7 @@ class AutoReimplementation:
         self.approach = approach
         self.output: Optional[str] = None
         self.storage_instance = Storage(storage_path,repo_path)
+        self.sequence_tests_LM_instance=sequence_tests_LM(repo_path,storage_path)
         self.cost_accumulation = 0
 
         self.trials={"environment_designation":0,"main_designation":0}
@@ -37,8 +39,8 @@ class AutoReimplementation:
     def run(self,goal=None):
         if self.mode == "default" :
             self.load_basic_information()
-            self.designate_file_environments()
-            self.designate_file_main(goal)
+            self.designate_files_environments()
+            self.designate_files_main(goal)
 
     def send_inquiry(self,tests=None):
         if tests:
@@ -71,7 +73,7 @@ class AutoReimplementation:
 
 
     @auto_load_save
-    def designate_file_environments(self):
+    def designate_files_environments(self):
         readme=self.storage_instance.information[self.repo_path]['file_contents']['repo_root/README.md']
         file_structure=self.storage_instance.information[self.repo_path]['file_structure']
         self.prompt_instance.designate_files_environments(file_structure,readme)
@@ -79,13 +81,17 @@ class AutoReimplementation:
         self.trials["environment_designation"] +=1
         self.storage_instance.add_designated_entries("environments",response,self.trials["environment_designation"])
 
+    def configure_environments(self):
+        pass
+
     @auto_load_save
-    def designate_file_main(self,goal):
+    def designate_files_main(self , goal):
         readme=self.storage_instance.information[self.repo_path]['file_contents']['repo_root/README.md']
         file_structure=self.storage_instance.information[self.repo_path]['file_structure']
         self.prompt_instance.designate_files_main(goal,file_structure,readme)
         response = self.send_inquiry()
+        extraction = self.sequence_tests_LM_instance.designate_files_tests(response)
         self.trials["main_designation"] +=1
-        self.storage_instance.add_designated_entries("main",response,self.trials["main_designation"])
+        self.storage_instance.add_designated_entries("main",extraction,self.trials["main_designation"])
 
 

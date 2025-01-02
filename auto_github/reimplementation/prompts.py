@@ -23,7 +23,8 @@ class ReimplementationPromptML(PromptBase):
             goal,
             "Here is some information about the repository:",
             repository_information,
-            response_header,
+            "Your answer should be a Python list of strings. Your answer should not include any introduction, explanation, or context.",
+            "Here is the Python list of string, with each string representing an the file path (starting with 'repo_root/') and file name of an important file for "+response_header,
         ]
         self.prompt = self.prompt_formatting_OpenAI(prompt_string)
 
@@ -31,11 +32,12 @@ class ReimplementationPromptML(PromptBase):
         goal=("Configure and set up external environments required for the project’s core functionality, "
               "excluding documentation, GUI, and any modules or packages with source code already available in the repository.")
         repository_information=f"The content in the README.md file is as below:\n{repository_information}"
-        response_header="Here is the list of files for configuring and setting up external environments:"
+        response_header="configuring and setting up external environments:"
         self.designate_files(repository_structure,goal,repository_information,response_header)
 
     def designate_files_main(self,goal,repository_structure,repository_information):
         goal+=goal+"\n"+"Here are some additional context\n1. you should ignore files for documentation or GUI\n2. you should assume the external environments are already set up.\n3. the modules and packages in the repository are available and accessible (by importing for example)"
         repository_information=f"The content in the README.md file is as below:\n{repository_information}"
-        response_header="Here is the list of important files for achieving the goal:"
+        response_header="achieving the goal:"
         self.designate_files(repository_structure,goal,repository_information,response_header)
+
