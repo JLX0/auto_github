@@ -15,7 +15,13 @@ def main() -> None:
         repo_path=repo_path,
         debug=True,
         )
-    auto_reimplementation_instance.run()
+
+    goal="""
+    1. create a function called load_BOHB
+    2. the arguments of the function should be: various hyperparameters for configuring BOHB
+    3. the function should return an object, which is a callable that takes a fitness function as input and returns the best hyperparameters.   
+    """
+    auto_reimplementation_instance.run(goal=goal)
 
 if __name__ == "__main__":
     main()

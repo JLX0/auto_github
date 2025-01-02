@@ -2,14 +2,19 @@ import os
 import subprocess
 from pathlib import Path
 
+from auto_github.utils.stored_info import Storage
+
+
+
 class Repo_base:
-    def __init__(self, repo_link: str, repo_path: str, model: str = "gpt-4o-mini") -> None:
+    def __init__(self, repo_link: str, repo_path: str, storage_path:str, model: str = "gpt-4o-mini") -> None:
         """Initialize the Repository instance with the given path and model."""
         self.repo_link: str = repo_link
         self.repo_path: str = repo_path
         self.file_structure: str = ""
         self.file_contents: dict[str, str] = {}
         self.model: str = model
+        self.storage_instance = Storage(storage_path, repo_path)
 
     def clone_repo(self) -> None :
         """
@@ -31,7 +36,7 @@ class Repo_base:
         except subprocess.CalledProcessError as e :
             print(f"Failed to clone repository: {e}")
 
-    def generate_and_get_repo_structure(self, indent: str = '') -> str:
+    def generate_and_get_repo_structure_base(self , indent: str = '') -> str:
         """
         Recursively generate a markdown representation of the directory structure,
         store it in self.file_structure, and return it.
@@ -49,7 +54,7 @@ class Repo_base:
                 # Temporarily update self.repo_path to the subdirectory for recursion
                 original_repo_path = self.repo_path
                 self.repo_path = full_path
-                markdown += self.generate_and_get_repo_structure(indent + '  ')
+                markdown += self.generate_and_get_repo_structure_base(indent + '  ')
                 # Restore the original repo_path
                 self.repo_path = original_repo_path
             else:
@@ -59,13 +64,19 @@ class Repo_base:
         if indent == '':  # Only store the structure for the top-level directory
             self.file_structure = markdown
 
+
+        return markdown
+
+    def generate_and_get_repo_structure(self, indent: str = '') -> str:
+        markdown=self.generate_and_get_repo_structure_base(indent)
+        self.storage_instance.add_file_structure(self.file_structure)
         return markdown
 
 
 class Repo_ML(Repo_base):
 
-    def __init__(self, repo_link: str, repo_path: str, model: str = "gpt-4o-mini") -> None:
-        super().__init__(repo_link,repo_path,model)
+    def __init__(self, repo_link: str, repo_path: str, storage_path:str, model: str = "gpt-4o-mini") -> None:
+        super().__init__(repo_link,repo_path,storage_path, model)
         self.supported_main_file_types: list[str] = ['.py' , '.json']
         self.supported_environment_file_types: list[str] = ['.yml' , '.yaml']
         self.supported_data_file_types: list[str] = ['.csv' , '.tsv' , '.json']
@@ -115,7 +126,10 @@ class Repo_ML(Repo_base):
                 else:
                     print(f"File {file_path} does not exist.")
 
+        self.storage_instance.add_file_contents(self.file_contents)
+
         return self.file_contents
+
 
 
 if __name__ == "__main__":
@@ -124,7 +138,7 @@ if __name__ == "__main__":
     repo_path = '/home/j/experiments/auto_github/sample_repos/bohb'  # Replace with your local repo path
     repo = Repo_ML(repo_link, repo_path)
     repo.clone_repo()  # Clone the repository
-    markdown_structure = repo.generate_and_get_repo_structure()  # Generate and print the structure
+    markdown_structure = repo.generate_and_get_repo_structure_base()  # Generate and print the structure
     print(markdown_structure)
 
     # Load all main file types
