@@ -84,3 +84,24 @@ class ReimplementationPromptML(PromptBase):
                         "Here is the shell script:"]
 
         self.prompt = self.prompt_formatting_OpenAI(prompt_string)
+
+    def generate_code_main(self,programming_goal,repository_information, repository_structure,file_list, file_contents):
+        file_contents_string=self.file_contents_to_prompts(file_list,file_contents)
+        prompt_string=[
+            "Given some information about a Github repository, a file structure of the repository, "
+            "and a list of important files and file contents of a repository, your task is to "
+            "create Python code that satisfies a programming goal based on the packages and modules in the repository."
+            "Here is the information about the repository:",
+            repository_information,
+            "Here is the file structure of the repository:",
+            repository_structure,
+            "Here is a list of important files and file contents of the repository:"]
+        prompt_string+=file_contents_string
+
+        prompt_string+=[f"The programming goal is:\n{programming_goal}",
+                        "Your answer can import packages and modules from the repository, "
+                        "adapt existing code in the repository, and be based on new code. ",
+                        "Your answer should only be the Python code, not any introduction, explanation, or context.",
+                        "Here is the Python code:"]
+
+        self.prompt = self.prompt_formatting_OpenAI(prompt_string)

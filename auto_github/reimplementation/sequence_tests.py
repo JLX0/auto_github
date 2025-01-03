@@ -20,3 +20,8 @@ class sequence_tests_LM():
         code = extract_code(raw_sequence, language="bash")
         # TODO: complete the tests
         return code
+
+    def generate_code_main_tests(self,raw_sequence):
+        code = extract_code(raw_sequence)
+        # TODO: complete the tests
+        return code

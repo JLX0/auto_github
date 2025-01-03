@@ -23,8 +23,7 @@ class AutoReimplementation:
         approach: str = "load",
         storage_path: str = "repos.json",
     ) -> None:
-
-        self.OpenAI_instance = OpenAI_interface(api_key , model=model , debug=debug)
+        self.OpenAI_instance = OpenAI_interface(api_key , model=model ,timeout=120, maximum_retry=3 , debug=debug)
         self.repo_link = repo_link
         self.repo_path = repo_path
         self.repo_instance = Repo_ML(repo_link, repo_path, storage_path, model=model)
@@ -39,7 +38,7 @@ class AutoReimplementation:
         self.cost_accumulation = 0
         self.sequence_tests_trial_limit=5
 
-        self.trials={"environment_designation":0,"main_designation":0,"generate_code_environments":0}
+        self.trials={"environment_designation":0,"main_designation":0,"generate_code_environments":0, "generate_code_main":0}
 
     def run(self,goal=None):
         if self.mode == "default" :
@@ -48,6 +47,7 @@ class AutoReimplementation:
             self.designate_files_main(goal)
             self.generate_code_environments()
             self.create_environments()
+            self.generate_code_main()
 
     def send_inquiry(self,tests=None):
         if tests:
@@ -106,6 +106,25 @@ class AutoReimplementation:
         trial_environment_code="1"
         environment_code = self.storage_instance.information[self.repo_path]['environment_code'][trial_environment_code]
         self.executor_instance.create_environments(environment_code)
+
+    @auto_load_save
+    def generate_code_main(self):
+        file_contents = self.storage_instance.information[self.repo_path]['file_contents']
+        readme = file_contents['repo_root/README.md']
+        file_structure = self.storage_instance.information[self.repo_path]['file_structure']
+        trial_main_designation="1"
+        file_list = self.storage_instance.information[self.repo_path]['main'][trial_main_designation]
+        environment_name = "test_1"
+        programming_goal='''
+        1. create a function called load_BOHB
+        2. the arguments of the function should be: various hyperparameters for configuring BOHB
+        3. the function should return an object, which is a callable that takes a fitness function as input and returns the best hyperparameters.   
+        '''
+        self.prompt_instance.generate_code_main(programming_goal,readme,file_structure,file_list,file_contents)
+        extraction = self.send_inquiry(self.sequence_tests_LM_instance.generate_code_main_tests)
+        self.trials["generate_code_main"] +=1
+        self.storage_instance.add_entries("main_code",extraction,self.trials["generate_code_main"])
+
 
     @auto_load_save
     def designate_files_main(self , goal):
