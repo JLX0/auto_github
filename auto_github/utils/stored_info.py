@@ -32,7 +32,7 @@ class Storage(Storage_base):
         self.information[self.repo_path]['file_contents'] = file_contents
 
     @Storage_base.auto_load_save
-    def add_designated_entries(self , info_type , info_content , info_trial=None) :
+    def add_entries(self , info_type , info_content , info_trial=None) :
         """
         This method adds designated entries to a repository in the info dictionary.
 
