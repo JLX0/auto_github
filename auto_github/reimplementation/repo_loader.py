@@ -96,11 +96,15 @@ class Repo_ML(Repo_base):
                            and file contents as values.
         """
 
-        if targets is None and mode == "main":
+        if targets is None:
+            if mode == "main":
             # Load all files with extensions in self.main_file_types
+                target_files=self.supported_main_file_types
+            if mode == "environment":
+                target_files=self.supported_environment_file_types
             for root, _, files in os.walk(self.repo_path):
                 for file in files:
-                    if any(file.endswith(ext) for ext in self.supported_main_file_types):
+                    if any(file.endswith(ext) for ext in target_files):
                         file_path = os.path.join(root, file)
                         try:
                             with open(file_path, 'r', encoding='utf-8') as f:
@@ -110,6 +114,7 @@ class Repo_ML(Repo_base):
                                 self.file_contents[repo_root_path] = f.read()
                         except Exception as e:
                             print(f"Failed to read file {file_path}: {e}")
+
         elif targets and isinstance(targets, list):
             # Load only the specified files
             for target in targets:
@@ -136,16 +141,18 @@ if __name__ == "__main__":
     # Example usage
     repo_link = "https://github.com/example_user/example_repo.git"  # Replace with your GitHub repo URL
     repo_path = '/home/j/experiments/auto_github/sample_repos/bohb'  # Replace with your local repo path
-    repo = Repo_ML(repo_link, repo_path)
+    repo = Repo_ML(repo_link, repo_path, storage_path="info.json")
     repo.clone_repo()  # Clone the repository
     markdown_structure = repo.generate_and_get_repo_structure_base()  # Generate and print the structure
     print(markdown_structure)
 
-    # Load all main file types
-    file_contents = repo.load_file_contents()
+    file_contents = repo.load_file_contents(mode="environment")
     print(file_contents)
-
-    # Load specific files
-    specific_files = ['README.md', 'src/main.py']
-    file_contents = repo.load_file_contents(targets=specific_files)
-    print(file_contents)
+    # # Load all main file types
+    # file_contents = repo.load_file_contents()
+    # print(file_contents)
+    #
+    # # Load specific files
+    # specific_files = ['README.md', 'src/main.py']
+    # file_contents = repo.load_file_contents(targets=specific_files)
+    # print(file_contents)

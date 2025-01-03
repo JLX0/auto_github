@@ -7,6 +7,7 @@ from auto_github.reimplementation.repo_loader import Repo_ML
 from auto_github.reimplementation.prompts import ReimplementationPromptML
 from auto_github.utils.stored_info import Storage
 from auto_github.reimplementation.sequence_tests import sequence_tests_LM
+import traceback
 
 class AutoReimplementation:
     def __init__(
@@ -33,6 +34,7 @@ class AutoReimplementation:
         self.storage_instance = Storage(storage_path,repo_path)
         self.sequence_tests_LM_instance=sequence_tests_LM(repo_path,storage_path)
         self.cost_accumulation = 0
+        self.sequence_tests_trial_limit=5
 
         self.trials={"environment_designation":0,"main_designation":0}
 
@@ -41,6 +43,7 @@ class AutoReimplementation:
             self.load_basic_information()
             self.designate_files_environments()
             self.designate_files_main(goal)
+            self.generate_code_environments()
 
     def send_inquiry(self,tests=None):
         if tests:
@@ -68,8 +71,23 @@ class AutoReimplementation:
 
     def load_basic_information(self):
         self.repo_instance.generate_and_get_repo_structure()
-        self.repo_instance.load_file_contents()
+        self.repo_instance.load_file_contents(mode="main")
+        self.repo_instance.load_file_contents(mode="environment")
         self.repo_instance.load_file_contents(targets=['README.md'])
+
+    def designate_files_base(self):
+        sequence_tests_trial_count=0
+        while sequence_tests_trial_count < self.sequence_tests_trial_limit:
+            sequence_tests_trial_count+=1
+            try:
+                response = self.send_inquiry()
+                extraction = self.sequence_tests_LM_instance.designate_files_tests(response)
+                return extraction
+            except Exception as e:
+                print("Sequence tests failed, reason:")
+                print(traceback.format_exc())
+                print("Trying again")
+
 
 
     @auto_load_save
@@ -77,21 +95,30 @@ class AutoReimplementation:
         readme=self.storage_instance.information[self.repo_path]['file_contents']['repo_root/README.md']
         file_structure=self.storage_instance.information[self.repo_path]['file_structure']
         self.prompt_instance.designate_files_environments(file_structure,readme)
-        response = self.send_inquiry()
-        self.trials["environment_designation"] +=1
-        self.storage_instance.add_designated_entries("environments",response,self.trials["environment_designation"])
 
-    def configure_environments(self):
-        pass
+        extraction=self.designate_files_base()
+
+        self.trials["environment_designation"] +=1
+        self.storage_instance.add_designated_entries("environments",extraction,self.trials["environment_designation"])
+
+    def generate_code_environments(self):
+        file_contents = self.storage_instance.information[self.repo_path]['file_contents']
+        readme = file_contents['repo_root/README.md']
+        file_structure = self.storage_instance.information[self.repo_path]['file_structure']
+        trial_environment_designation="1"
+        file_list = self.storage_instance.information[self.repo_path]['environments'][trial_environment_designation]
+        environment_name = "test_1"
+        self.prompt_instance.generate_code_environments(environment_name,readme,file_structure,file_list,file_contents)
+
+        print(self.send_inquiry())
+
 
     @auto_load_save
     def designate_files_main(self , goal):
         readme=self.storage_instance.information[self.repo_path]['file_contents']['repo_root/README.md']
         file_structure=self.storage_instance.information[self.repo_path]['file_structure']
         self.prompt_instance.designate_files_main(goal,file_structure,readme)
-        response = self.send_inquiry()
-        extraction = self.sequence_tests_LM_instance.designate_files_tests(response)
+        extraction=self.designate_files_base()
         self.trials["main_designation"] +=1
         self.storage_instance.add_designated_entries("main",extraction,self.trials["main_designation"])
-
 
