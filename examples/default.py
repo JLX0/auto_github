@@ -1,7 +1,28 @@
 from __future__ import annotations
 
+from charset_normalizer import detect
+
 from auto_github.reimplementation.core import AutoReimplementation
 from LLM_utils.inquiry import get_api_key
+import os
+
+
+def delete_file(file_path):
+    # Check if the file exists and delete it
+    if os.path.isfile(file_path):
+        try:
+            os.remove(file_path)
+            print(f"File '{file_path}' has been deleted successfully.")
+        except Exception as e:
+            print(f"An error occurred while trying to delete the file: {e}")
+    else:
+        print(f"File '{file_path}' not found.")
+
+delete_file("/home/j/experiments/auto_github/examples/repos.json")
+delete_file("/home/j/experiments/auto_github/sample_repos/bohb/main_code.py")
+
+def dummy_test(code):
+    print("performing dummy test")
 
 def main() -> None:
     repo_link = "https://github.com/example_user/example_repo.git"  # Replace with your GitHub repo URL
@@ -14,6 +35,7 @@ def main() -> None:
         repo_link=repo_link,
         repo_path=repo_path,
         debug=True,
+        external_tests=dummy_test
         )
 
     goal="""

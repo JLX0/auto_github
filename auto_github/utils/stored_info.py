@@ -72,6 +72,63 @@ class Storage(Storage_base):
         # Add the information to the designated trial
         self.information[self.repo_path][info_type][str(info_trial)] = info_content
 
+    @Storage_base.auto_load_save
+    def add_history(self, step, trial, status, feedback):
+        """
+        e.g., {"history":["environment_designation","2","status","feedback...."]}
+        it could be used to get the trials employed for each step currently.
+        """
+
+        if "history" not in self.information[self.repo_path]:
+            self.information[self.repo_path]["history"] = []
+
+        self.information[self.repo_path]["history"].append([step, trial, status, feedback])
+
+
+    def load_history(self,mode="last_one", with_code=True):
+        self.load_info()
+        if mode=="last_one":
+            target_history=self.information[self.repo_path]["history"][-1]
+        step=target_history[0]
+        trial=target_history[1]
+        status=target_history[2]
+        feedback=target_history[3]
+        if with_code:
+            if step=="generate_code_environment":
+                code=self.information[self.repo_path]["environment_code_raw"][str(trial)]
+            if step=="generate_code_main":
+                code=self.information[self.repo_path]["main_code_raw"][str(trial)]
+        if not with_code:
+            return step,trial,status,feedback
+        else:
+            return step,trial,status,feedback,code
+
+
+    def load_common_info(self , repository_information:bool=False , repository_structure:bool=False , file_list_environment:bool=False , file_list_main:bool=False , file_contents:bool=False , trial_designation:str= "1"):
+        self.load_info()
+        loaded_information={}
+
+        if repository_information:
+            loaded_information["repository_information"] = self.information[self.repo_path]['file_contents']['repo_root/README.md']
+        if repository_structure:
+            loaded_information["repository_structure"] = self.information[self.repo_path]['file_structure']
+        if file_list_environment:
+            loaded_information["file_list"] = self.information[self.repo_path]['environment_designation'][str(trial_designation)]
+        if file_list_main:
+            loaded_information["file_list"] = self.information[self.repo_path]['main_designation'][str(trial_designation)]
+        if file_contents:
+            loaded_information["file_contents"] = self.information[self.repo_path]['file_contents']
+
+        return loaded_information
+
+    def get_latest_trial(self, info_type):
+        self.load_info()
+        if info_type not in self.information[self.repo_path]:
+            return None
+        trials = self.information[self.repo_path][info_type].keys()
+        return max(trials) if trials else None
+
+
 if __name__ == "__main__":
     storage = Storage("info.json" , "repo_path")
     storage.add_repo_path()

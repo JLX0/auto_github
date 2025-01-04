@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Callable
+import traceback
 
 from LLM_utils.inquiry import OpenAI_interface
+
 from auto_github.reimplementation.repo_loader import Repo_ML
 from auto_github.reimplementation.prompts import ReimplementationPromptML
 from auto_github.utils.stored_info import Storage
 from auto_github.utils.execution import executor_ML
 from auto_github.reimplementation.sequence_tests import sequence_tests_LM
-
 
 
 class AutoReimplementation:
@@ -22,13 +23,14 @@ class AutoReimplementation:
         mode: str = "default",
         approach: str = "load",
         storage_path: str = "repos.json",
+        external_tests: Callable[[str] , str] = None,
     ) -> None:
         self.OpenAI_instance = OpenAI_interface(api_key , model=model ,timeout=120, maximum_retry=3 , debug=debug)
         self.repo_link = repo_link
         self.repo_path = repo_path
         self.repo_instance = Repo_ML(repo_link, repo_path, storage_path, model=model)
         self.repo_instance.clone_repo()
-        self.prompt_instance = ReimplementationPromptML()
+        self.prompt_instance = ReimplementationPromptML(storage_path,repo_path)
         self.mode = mode
         self.approach = approach
         self.output: Optional[str] = None
@@ -37,17 +39,80 @@ class AutoReimplementation:
         self.executor_instance = executor_ML(repo_path)
         self.cost_accumulation = 0
         self.sequence_tests_trial_limit=5
+        self.base_environment_name="test_env"
+        self.overwrite_environment=True
+        self.main_code_path="main_code.py"
+        self.tests_by_execution=True
+        self.external_tests=external_tests
+        self.auto_tests=False
 
-        self.trials={"environment_designation":0,"main_designation":0,"generate_code_environments":0, "generate_code_main":0}
+        self.trials={"environment_designation":0,"main_designation":0,"generate_code_environment":0, "generate_code_main":0}
 
     def run(self,goal=None):
         if self.mode == "default" :
+            self.prompt_instance.goal=goal
             self.load_basic_information()
-            self.designate_files_environments()
-            self.designate_files_main(goal)
-            self.generate_code_environments()
-            self.create_environments()
-            self.generate_code_main()
+            self.step_queues=["designate_files_environment","designate_files_main","generate_code_environment","generate_code_main"]
+            self.iterator()
+
+    def iterator(self):
+        '''
+        this framework supports various generation styles?
+        add past histories
+        '''
+        while self.step_queues != []:
+            test_status, traceback_results=self.operator()
+            if test_status:
+                self.step_queues.pop(0)
+            else:
+                self.arrange_queues()
+        print("--------All steps have been completed!--------")
+
+    def arrange_queues(self):
+
+        self.prompt_instance.arrange_queues_prompt()
+        extraction = self.send_inquiry(tests=self.sequence_tests_LM_instance.arrange_queues_tests)
+
+        current_step=self.step_queues[0]
+        if current_step=="generate_code_environment":
+            if extraction=="designate_files_environment":
+                self.step_queues.insert(0,"designate_files_environment")
+        if current_step=="generate_code_main":
+            if extraction=="designate_files_environment":
+                self.step_queues.insert(0,"designate_files_environment")
+                self.step_queues.insert(1,"generate_code_environment")
+            if extraction=="generate_code_environment":
+                self.step_queues.insert(0,"generate_code_environment")
+            if extraction=="designate_files_main":
+                self.step_queues.insert(0,"designate_files_main")
+
+    def operator(self):
+        test_status=True
+        traceback_results="N/A"
+        current_step=self.step_queues[0]
+        if current_step=="designate_files_environment":
+            self.trials["environment_designation"] += 1
+            trial=self.trials["environment_designation"]
+            print("--------begin designating files for setting up the environment--------")
+            self.designate_files_environment()
+        if current_step=="designate_files_main":
+            self.trials["main_designation"] += 1
+            trial=self.trials["main_designation"]
+            print("--------begin designating files for adapting the repository--------")
+            self.designate_files_main()
+        if current_step=="generate_code_environment":
+            self.trials["generate_code_environment"] += 1
+            trial=self.trials["generate_code_environment"]
+            print("--------begin generating shell script for setting up the environment--------")
+            test_status,traceback_results=self.generate_code_environment()
+        if current_step=="generate_code_main":
+            self.trials["generate_code_main"] += 1
+            trial=self.trials["generate_code_main"]
+            print("--------begin generating Python code for adapting the repository--------")
+            test_status,traceback_results=self.generate_code_main()
+
+        self.storage_instance.add_history(current_step,trial,test_status,traceback_results)
+        return test_status,traceback_results
 
     def send_inquiry(self,tests=None):
         if tests:
@@ -57,12 +122,13 @@ class AutoReimplementation:
         self.cost_accumulation += cost
         return response
 
-
     @staticmethod
     def auto_load_save(method) :
         """
         Decorator to automatically call self.load_info() before the method
         and self.save_info() after the method.
+
+        Currently, the method is inactive
         """
 
         def wrapper(self , *args , **kwargs) :
@@ -79,59 +145,87 @@ class AutoReimplementation:
         self.repo_instance.load_file_contents(mode="environment")
         self.repo_instance.load_file_contents(targets=['README.md'])
 
-    @auto_load_save
-    def designate_files_environments(self):
-        readme=self.storage_instance.information[self.repo_path]['file_contents']['repo_root/README.md']
-        file_structure=self.storage_instance.information[self.repo_path]['file_structure']
-        self.prompt_instance.designate_files_environments(file_structure,readme)
+    def designate_files_environment(self):
+        self.prompt_instance.designate_files_environment_prompt()
         extraction=self.send_inquiry(tests=self.sequence_tests_LM_instance.designate_files_tests)
-        self.trials["environment_designation"] +=1
-        self.storage_instance.add_entries("environments" , extraction , self.trials["environment_designation"])
+        self.storage_instance.add_entries("environment_designation" , extraction , self.trials["environment_designation"])
 
-    @auto_load_save
-    def generate_code_environments(self):
-        file_contents = self.storage_instance.information[self.repo_path]['file_contents']
-        readme = file_contents['repo_root/README.md']
-        file_structure = self.storage_instance.information[self.repo_path]['file_structure']
-        trial_environment_designation="1"
-        file_list = self.storage_instance.information[self.repo_path]['environments'][trial_environment_designation]
-        environment_name = "test_1"
-        self.prompt_instance.generate_code_environments(environment_name,readme,file_structure,file_list,file_contents)
-        extraction = self.send_inquiry(self.sequence_tests_LM_instance.generate_code_environments_tests)
-        self.trials["generate_code_environments"] +=1
-        self.storage_instance.add_entries("environment_code",extraction,self.trials["generate_code_environments"])
+    def designate_files_main(self ):
+        self.prompt_instance.designate_files_main_prompt()
+        extraction=self.send_inquiry(tests=self.sequence_tests_LM_instance.designate_files_tests)
+        self.storage_instance.add_entries("main_designation" , extraction , self.trials["main_designation"])
 
-    @auto_load_save
-    def create_environments(self):
-        trial_environment_code="1"
-        environment_code = self.storage_instance.information[self.repo_path]['environment_code'][trial_environment_code]
-        self.executor_instance.create_environments(environment_code)
+    def generate_code_environment(self):
+        if self.overwrite_environment:
+            self.environment_name=self.base_environment_name
+        else:
+            self.environment_name = self.base_environment_name+str(self.trials["generate_code_environment"])
+        self.sequence_tests_LM_instance.environment_name=self.environment_name
 
-    @auto_load_save
+        self.generate_code_environment_raw_response()
+        traceback_results=None
+        test_status=True
+        try:
+            self.generate_code_environment_tests_and_execution()
+        except Exception as e:
+            print("Error detected in the code for setting up the environment")
+            test_status=False
+            traceback_results=traceback.format_exc()
+            print("Traceback results:")
+            print(traceback_results)
+
+        return test_status,traceback_results
+
+    def generate_code_environment_raw_response(self):
+        self.prompt_instance.generate_code_environments_prompt(self.environment_name , self.trials["environment_designation"])
+        raw_response = self.send_inquiry()
+        self.storage_instance.add_entries("environment_code_raw",raw_response,self.trials["generate_code_environment"])
+
+    def check_code_environment_output(self , execution_output):
+        self.prompt_instance.check_code_environment_output_prompt(self.trials["generate_code_environment"] , execution_output)
+        extraction = self.send_inquiry(tests=self.sequence_tests_LM_instance.check_code_environment_output_tests)
+        assert extraction==True, (f"Setting up the environment failed, here is the execution output "
+                                  f"from setting up the environment:\n{execution_output}")
+
+    def generate_code_environment_tests_and_execution(self):
+        self.storage_instance.load_info()
+        raw_response = self.storage_instance.information[self.repo_path]['environment_code_raw'][str(self.trials["generate_code_environment"])]
+        environment_code = self.sequence_tests_LM_instance.generate_code_environment_tests(raw_response)
+        self.storage_instance.add_entries("environment_code",environment_code,self.trials["generate_code_environment"])
+        # currently, environment_code stores strings of code that pass the basic tests but not the functionality test
+        _, execution_output=self.executor_instance.create_environment(environment_code)
+        self.check_code_environment_output(execution_output)
+
     def generate_code_main(self):
-        file_contents = self.storage_instance.information[self.repo_path]['file_contents']
-        readme = file_contents['repo_root/README.md']
-        file_structure = self.storage_instance.information[self.repo_path]['file_structure']
-        trial_main_designation="1"
-        file_list = self.storage_instance.information[self.repo_path]['main'][trial_main_designation]
-        environment_name = "test_1"
-        programming_goal='''
-        1. create a function called load_BOHB
-        2. the arguments of the function should be: various hyperparameters for configuring BOHB
-        3. the function should return an object, which is a callable that takes a fitness function as input and returns the best hyperparameters.   
-        '''
-        self.prompt_instance.generate_code_main(programming_goal,readme,file_structure,file_list,file_contents)
-        extraction = self.send_inquiry(self.sequence_tests_LM_instance.generate_code_main_tests)
-        self.trials["generate_code_main"] +=1
-        self.storage_instance.add_entries("main_code",extraction,self.trials["generate_code_main"])
 
+        self.generate_code_main_raw_response()
+        traceback_results=None
+        test_status=True
+        try:
+            self.generate_code_main_tests()
+        except Exception as e:
+            print("Error detected in the Python code for adapting the repository")
+            test_status=False
+            traceback_results=traceback.format_exc()
+            print("Traceback results:")
+            print(traceback_results)
 
-    @auto_load_save
-    def designate_files_main(self , goal):
-        readme=self.storage_instance.information[self.repo_path]['file_contents']['repo_root/README.md']
-        file_structure=self.storage_instance.information[self.repo_path]['file_structure']
-        self.prompt_instance.designate_files_main(goal,file_structure,readme)
-        extraction=self.send_inquiry(tests=self.sequence_tests_LM_instance.designate_files_tests)
-        self.trials["main_designation"] +=1
-        self.storage_instance.add_entries("main" , extraction , self.trials["main_designation"])
+        return test_status,traceback_results
 
+    def generate_code_main_raw_response(self):
+        self.prompt_instance.generate_code_main_prompt(self.trials["main_designation"])
+        raw_response = self.send_inquiry()
+        self.storage_instance.add_entries("main_code_raw",raw_response,self.trials["generate_code_main"])
+
+    def generate_code_main_tests(self):
+        self.storage_instance.load_info()
+        raw_response = self.storage_instance.information[self.repo_path]['main_code_raw'][str(self.trials["generate_code_main"])]
+        main_code = self.sequence_tests_LM_instance.generate_code_main_tests(
+            raw_response,self.main_code_path, self.tests_by_execution, self.external_tests, self.auto_tests)
+        self.storage_instance.add_entries("main_code",main_code,self.trials["generate_code_main"])
+
+    #TODO: add prompt length and file suggestion number restriction
+    #TODO: unify the type of trials?
+    #TODO: add shell script and code execution time limit
+    #TODO: tests for situations where retry is triggered
+    #TODO: figure out performing the tests in target conda environment
