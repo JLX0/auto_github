@@ -1,17 +1,22 @@
 from __future__ import annotations
 
 from LLM_utils.prompter import PromptBase
-from auto_github.utils.stored_info import Storage
+from LLM_utils.prompter import available_packages_prompt
 
+from auto_github.utils.stored_info import Storage
+import os
 
 class ReimplementationPromptML(PromptBase):
     environment_template_path = "/home/j/experiments/auto_github/auto_github/reimplementation/environment_template.sh"
 
-    def __init__(self, storage_path, repo_path,goal=None) -> None:
+    def __init__(self, storage_path, repo_path, target_path, goal=None) -> None:
 
         self.storage_instance=Storage(storage_path,repo_path)
         self.repo_path=repo_path
+        self.target_path=target_path
         self.goal=goal
+
+        self.environment_name=None
 
     def check_retry(self,prompt_type):
         self.storage_instance.load_info()
@@ -64,7 +69,8 @@ class ReimplementationPromptML(PromptBase):
             "Your answer should be a Python list of strings. Your answer should not include any introduction, explanation, or context.",
             "Here is the Python list of string, with each string representing an the file path (starting with 'repo_root/') and file name of an important file for "+response_header,
             ]
-        self.prompt = self.prompt_formatting_OpenAI(prompt_string)
+
+        self.prompt = PromptBase.list_to_formatted_OpenAI(prompt_string)
 
     def designate_files_environment_prompt(self):
 
@@ -99,7 +105,7 @@ class ReimplementationPromptML(PromptBase):
             environment_template = file.read()
         return environment_template
 
-    def generate_code_environments_prompt(self , environment_name , trial_environment_designation):
+    def generate_code_environments_prompt(self , trial_environment_designation):
 
         loaded_info=self.storage_instance.load_common_info(file_contents=True , repository_structure=True , repository_information=True , file_list_environment=True , trial_designation=trial_environment_designation)
         file_contents, repository_structure,repository_information, file_list = loaded_info['file_contents'], loaded_info['repository_structure'],loaded_info['repository_information'],loaded_info['file_list']
@@ -114,12 +120,13 @@ class ReimplementationPromptML(PromptBase):
             repository_information,
             "Here is the file structure of the repository:",
             repository_structure,
+            "The working directory for the shell script is the repository's root directory (repo_root)",
             "Here is a list of important files and file contents of the repository:"]
         prompt_string+=file_contents_string
         prompt_string+=["Here is the template for the shell script:",
                         environment_template,
                         "In the template:",
-                        f"Replace <environment_name> with {environment_name}.",
+                        f"Replace <environment_name> with {self.environment_name}.",
                         "Replace <python_version> with a suitable version of Python.",
                         "Fill in the script for Step 3: Install external packages for the repository and packages in the repository."
                         "If the repository has no external packages dependencies, the script can skip installing external packages for the repository. "
@@ -140,7 +147,7 @@ class ReimplementationPromptML(PromptBase):
         prompt_string+=["Your answer should only be the shell script, not any introduction, explanation, or context.",
                         "Here is the shell script:"]
 
-        self.prompt = self.prompt_formatting_OpenAI(prompt_string)
+        self.prompt = PromptBase.list_to_formatted_OpenAI(prompt_string)
 
     def check_code_environment_output_prompt(self , trial_designation , execution_output):
 
@@ -156,7 +163,7 @@ class ReimplementationPromptML(PromptBase):
             "You could ignore non-critical warnings",
             "Your answer should be a Python boolean value (True or False). Your answer should not include any introduction, explanation, or context.",
             "Here is the Python boolean value:"]
-        self.prompt = self.prompt_formatting_OpenAI(prompt_string)
+        self.prompt = PromptBase.list_to_formatted_OpenAI(prompt_string)
 
     def generate_code_main_prompt(self, trial_main_designation):
         loaded_info=self.storage_instance.load_common_info(file_contents=True , repository_structure=True , repository_information=True , file_list_main=True , trial_designation=trial_main_designation)
@@ -172,12 +179,17 @@ class ReimplementationPromptML(PromptBase):
             repository_information,
             "Here is the file structure of the repository:",
             repository_structure,
+            "The repository's root directory (repo_root) relative to the working directory in which the Python code will be executed is:",
+            os.path.relpath(self.repo_path,self.target_path),
             "Here is a list of important files and file contents of the repository:"]
         prompt_string+=file_contents_string
 
+        prompt_string+=available_packages_prompt(self.environment_name)
+
         prompt_string+=[f"The programming goal is:\n{self.goal}",
-                        "Your answer can import packages and modules from the repository, "
-                        "adapt existing code in the repository, and be based on new code. "]
+                        "Your answer can import modules from the repository, "
+                        "adapt existing code in the repository, utilize installed packages from the Conda environment, "
+                        "and incorporate new code. "]
 
         if self.check_retry("code_main_raw"):
             step , trial , _ , feedback , code = self.storage_instance.load_history()
@@ -190,7 +202,7 @@ class ReimplementationPromptML(PromptBase):
         prompt_string+=["Your answer should only be the Python code, not any introduction, explanation, or context.",
                         "Here is the Python code:"]
 
-        self.prompt = self.prompt_formatting_OpenAI(prompt_string)
+        self.prompt = PromptBase.list_to_formatted_OpenAI(prompt_string)
 
     def history_to_prompts(self, step, feedback, code, mode="last_one"):
         history_string=[]
@@ -236,7 +248,7 @@ class ReimplementationPromptML(PromptBase):
 
         prompt_string+= history_string
 
-        prompt_string+=["Your task isto suggest the next step to take to fix the errors and failures.",
+        prompt_string+=["Your task is to suggest the next step to take to fix the errors and failures.",
                         "Available steps are:"
                         "1. 'designate_files_environment': decide which files to look at for "
                         "configuring and setting up external environment. Your answer should be "
@@ -258,4 +270,4 @@ class ReimplementationPromptML(PromptBase):
                          "Your answer should not include any introduction, explanation, or context.",
                          "Here is the Python string:"]
 
-        self.prompt = self.prompt_formatting_OpenAI(prompt_string)
+        self.prompt = PromptBase.list_to_formatted_OpenAI(prompt_string)

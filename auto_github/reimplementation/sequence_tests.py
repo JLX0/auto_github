@@ -34,13 +34,14 @@ class sequence_tests_LM():
 
     def generate_code_main_tests(self,
                                  raw_sequence: str,
-                                 code_path: str="main_code.py",
+                                 target_path: str ,
+                                 main_code_path: str,
                                  tests_by_execution:bool = True,
                                  external_tests: Callable[[str] , str] = None,
                                  auto_tests:bool = False):
 
         code = extract_code(raw_sequence)
-        save_python_code(code, self.repo_path+"/"+code_path)
+        save_python_code(code, main_code_path)
 
         outputs: dict[str , str|None] = {
             "tests_by_execution_output" : None ,
@@ -49,7 +50,7 @@ class sequence_tests_LM():
             }
 
         if tests_by_execution:
-            _ , tests_by_execution_output=self.executor_instance.execute_main_code(code_path,self.environment_name)
+            _ , tests_by_execution_output=self.executor_instance.execute_main_code(target_path,main_code_path,self.environment_name)
             outputs["tests_by_execution_output"]=tests_by_execution_output
 
         if external_tests is not None:
@@ -66,6 +67,9 @@ class sequence_tests_LM():
             return code
 
     def arrange_queues_tests(self,raw_sequence):
+        print("raw_sequence:",raw_sequence)
+        print("raw_sequence type:",type(raw_sequence))
+        # TODO: there seems to be an error for this test
         assert (raw_sequence in
                 ["designate_files_environment","designate_files_main","generate_code_environment","generate_code_main"]),\
             (f"the response is {raw_sequence} instead one of the following options: "

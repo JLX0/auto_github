@@ -16,15 +16,15 @@ class executor_ML:
         return_code, result = execute_bash(full_script, print_progress)
         return return_code, result
 
-    def execute_main_code(self, code_path, environment_name, print_progress=True):
+    def execute_main_code(self, target_path, main_code_path, environment_name, print_progress=True):
         print("-----executing generated code-----")
         full_script = f"""
         #!/bin/bash
         unset PYTHONPATH
-        cd {self.repo_path}
+        cd {target_path}
         eval "$(conda shell.bash hook)"
         conda activate {environment_name}
-        python {code_path}
+        python {main_code_path}
         """
         return_code, result = execute_bash(full_script, print_progress)
         return return_code, result

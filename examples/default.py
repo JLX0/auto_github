@@ -35,7 +35,9 @@ def main() -> None:
         repo_link=repo_link,
         repo_path=repo_path,
         debug=True,
-        external_tests=dummy_test
+        external_tests=dummy_test,
+        target_path="/home/j/experiments/auto_github/sample_repos/",
+        target_name="main_code.py"
         )
 
     goal="""

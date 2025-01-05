@@ -67,10 +67,22 @@ class Repo_base:
 
         return markdown
 
-    def generate_and_get_repo_structure(self, indent: str = '') -> str:
-        markdown=self.generate_and_get_repo_structure_base(indent)
+    def generate_and_get_repo_structure(self , indent: str = '') -> str :
+        # Generate the markdown structure
+        markdown = self.generate_and_get_repo_structure_base(indent)
+
+        # Prepend 'repo_root' and indent the entire structure under it
+        markdown_with_root = f"- **repo_root/**\n"
+        for line in markdown.splitlines() :
+            markdown_with_root += f"  {line}\n"  # Indent each line under repo_root
+
+        # Store the generated structure in the instance variable
+        self.file_structure = markdown_with_root
+
+        # Add the file structure to storage
         self.storage_instance.add_file_structure(self.file_structure)
-        return markdown
+
+        return markdown_with_root
 
 
 class Repo_ML(Repo_base):

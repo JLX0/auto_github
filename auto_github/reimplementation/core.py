@@ -23,28 +23,46 @@ class AutoReimplementation:
         mode: str = "default",
         approach: str = "load",
         storage_path: str = "repos.json",
+        target_path: str = None,
+        target_name: str = None,
         external_tests: Callable[[str] , str] = None,
     ) -> None:
-        self.OpenAI_instance = OpenAI_interface(api_key , model=model ,timeout=120, maximum_retry=3 , debug=debug)
         self.repo_link = repo_link
         self.repo_path = repo_path
-        self.repo_instance = Repo_ML(repo_link, repo_path, storage_path, model=model)
-        self.repo_instance.clone_repo()
-        self.prompt_instance = ReimplementationPromptML(storage_path,repo_path)
         self.mode = mode
         self.approach = approach
         self.output: Optional[str] = None
+        self.overwrite_environment=True
+        self.external_tests=external_tests
+        self.target_path=target_path
+        self.main_code_path=target_path+target_name
+
+        self.base_environment_name="test_env"
+        self.tests_by_execution=True
+        self.auto_tests=False
+        self.cost_accumulation = 0
+        self.code_generation_failure_count={"generate_code_environment":0, "generate_code_main":0}
+
+        self.sequence_generation_timeout=180 # in seconds
+        self.sequence_generation_trial_limit=5
+        self.code_generation_trial_limit=5
+        self.environment_designation_file_number_limit=5
+        self.main_designation_file_number_limit=10
+        self.environment_designation_file_content_limit=1000 # in token count
+        self.main_designation_file_content_limit=1000 # in token count
+        self.code_environment_execution_time_limit=300 # in seconds
+        self.code_main_execution_time_limit=600 # in seconds
+
+        self.OpenAI_instance = OpenAI_interface(
+            api_key , model=model ,timeout=self.sequence_generation_timeout,
+            maximum_retry=self.sequence_generation_trial_limit , debug=debug)
+        self.repo_instance = Repo_ML(repo_link, repo_path, storage_path, model=model)
+        self.repo_instance.clone_repo()
+        self.prompt_instance = ReimplementationPromptML(storage_path,repo_path,target_path)
         self.storage_instance = Storage(storage_path,repo_path)
         self.sequence_tests_LM_instance=sequence_tests_LM(repo_path,storage_path)
         self.executor_instance = executor_ML(repo_path)
-        self.cost_accumulation = 0
-        self.sequence_tests_trial_limit=5
-        self.base_environment_name="test_env"
-        self.overwrite_environment=True
-        self.main_code_path="main_code.py"
-        self.tests_by_execution=True
-        self.external_tests=external_tests
-        self.auto_tests=False
+
 
         self.trials={"environment_designation":0,"main_designation":0,"generate_code_environment":0, "generate_code_main":0}
 
@@ -60,13 +78,23 @@ class AutoReimplementation:
         this framework supports various generation styles?
         add past histories
         '''
-        while self.step_queues != []:
+        while self.step_queues != [] and not self.failure_trigger():
             test_status, traceback_results=self.operator()
             if test_status:
                 self.step_queues.pop(0)
             else:
+                self.code_generation_failure_count[self.step_queues[0]]+=1
                 self.arrange_queues()
         print("--------All steps have been completed!--------")
+
+    def failure_trigger(self):
+        if self.code_generation_failure_count["generate_code_environment"] >= self.code_generation_trial_limit:
+            print(f"code generation failed for setting up environment for more than {self.code_generation_trial_limit} times, aborting")
+            return True
+        if self.code_generation_failure_count["generate_code_main"] >= self.code_generation_trial_limit:
+            print(f"code generation failed for adapting the repository for more than {self.code_generation_trial_limit} times, aborting")
+            return True
+        return False
 
     def arrange_queues(self):
 
@@ -116,7 +144,7 @@ class AutoReimplementation:
 
     def send_inquiry(self,tests=None):
         if tests:
-            response, cost = self.OpenAI_instance.ask_with_test(self.prompt_instance.prompt , tests)
+            response, cost = self.OpenAI_instance.ask_with_test(self.prompt_instance.prompt , tests, self.sequence_generation_trial_limit)
         else:
             response, cost = self.OpenAI_instance.ask(self.prompt_instance.prompt)
         self.cost_accumulation += cost
@@ -160,6 +188,7 @@ class AutoReimplementation:
             self.environment_name=self.base_environment_name
         else:
             self.environment_name = self.base_environment_name+str(self.trials["generate_code_environment"])
+        self.prompt_instance.environment_name=self.environment_name
         self.sequence_tests_LM_instance.environment_name=self.environment_name
 
         self.generate_code_environment_raw_response()
@@ -177,7 +206,7 @@ class AutoReimplementation:
         return test_status,traceback_results
 
     def generate_code_environment_raw_response(self):
-        self.prompt_instance.generate_code_environments_prompt(self.environment_name , self.trials["environment_designation"])
+        self.prompt_instance.generate_code_environments_prompt(self.trials["environment_designation"])
         raw_response = self.send_inquiry()
         self.storage_instance.add_entries("environment_code_raw",raw_response,self.trials["generate_code_environment"])
 
@@ -221,11 +250,10 @@ class AutoReimplementation:
         self.storage_instance.load_info()
         raw_response = self.storage_instance.information[self.repo_path]['main_code_raw'][str(self.trials["generate_code_main"])]
         main_code = self.sequence_tests_LM_instance.generate_code_main_tests(
-            raw_response,self.main_code_path, self.tests_by_execution, self.external_tests, self.auto_tests)
+            raw_response, self.target_path, self.main_code_path, self.tests_by_execution, self.external_tests, self.auto_tests)
         self.storage_instance.add_entries("main_code",main_code,self.trials["generate_code_main"])
 
     #TODO: add prompt length and file suggestion number restriction
     #TODO: unify the type of trials?
     #TODO: add shell script and code execution time limit
     #TODO: tests for situations where retry is triggered
-    #TODO: figure out performing the tests in target conda environment
