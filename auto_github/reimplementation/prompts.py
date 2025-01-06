@@ -173,6 +173,7 @@ class ReimplementationPromptML(PromptBase):
                               "The shell script in your answer should be different from the shell script that failed" ]
 
         prompt_string+=["Your answer should only be the shell script, not any introduction, explanation, or context.",
+                        "Your script should not reference to any files not in the repository (as shown in the file structure of the repository)(without downloading the files).",
                         "Here is the shell script:"]
 
         self.prompt = PromptBase.list_to_formatted_OpenAI(prompt_string)

@@ -49,11 +49,11 @@ class AutoReimplementation:
         self.maximum_timeout_attempts=3
         self.code_generation_trial_limit=5
         self.environment_designation_file_number_limit=5
-        self.main_designation_file_number_limit=3
+        self.main_designation_file_number_limit=5
         self.environment_designation_file_content_limit=10000 # in token count
         self.main_designation_file_content_limit=10000 # in token count
-        self.code_environment_execution_time_limit=300 # in seconds
-        self.code_main_execution_time_limit=60 # in seconds
+        self.code_environment_execution_time_limit=600 # in seconds
+        self.code_main_execution_time_limit=300 # in seconds
         self.feedback_content_limit=10000
         # currently this also sets the time limit for testing main code
 

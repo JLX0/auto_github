@@ -15,7 +15,7 @@ def delete_file(file_path):
     else:
         print(f"File '{file_path}' not found.")
 
-delete_file("/home/j/experiments/auto_github/examples/repos.json")
+delete_file("/examples/repos_t5_worked.json")
 delete_file("/home/j/experiments/auto_github/sample_repos/bohb/main_code.py")
 
 def main() -> None:

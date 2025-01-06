@@ -52,13 +52,14 @@ class sequence_tests_LM():
 
         # Define the allowed commands and their patterns
         allowed_commands = {
-            r'conda create -n \w+ python=[\d\.]+(?:\.\d+)?(?:[\s\S]*?) -y' : "conda create" ,
-            r'conda activate \w+' : "conda activate" ,
-            r'conda install [\w\s=-]+' : "conda install" ,
-            r'pip install(?: -e)? [\w\s\.\/=-]+' : "pip install" ,
-            r'python [\w\s\./-]+' : "python" ,
-            r'git clone [\w\s\.\/:@-]+' : "git clone" ,
-            r'echo "Setup complete!"' : "echo" ,
+            r'conda create -n \w+ .*' : "conda create" ,
+            # Allow any arguments after `conda create -n <env_name>`
+            r'conda activate \w+' : "conda activate" ,  # Allow only `conda activate <env_name>`
+            r'conda install .*' : "conda install" ,  # Allow any arguments after `conda install`
+            r'pip install .*' : "pip install" ,  # Allow any arguments after `pip install`
+            r'python .*' : "python" ,  # Allow any arguments after `python`
+            r'git clone .*' : "git clone" ,  # Allow any arguments after `git clone`
+            r'echo "Setup complete!"' : "echo" ,  # Exact match for this specific echo command
             r'current_env=\$\(conda info --envs \| grep \'\*\' \| awk \'\{print \$1\}\'\)' : "current_env assignment" ,
             r'if \[ "\$current_env" != "\w+" \]; then' : "if condition" ,
             r'echo "Error: The active environment is not \'\w+\'. Please activate the correct environment and rerun the script."' : "error message" ,
@@ -76,12 +77,35 @@ class sequence_tests_LM():
         has_current_env_check = False
 
         # Iterate through each line and check if it matches any allowed command
-        for line in lines :
-            line = line.strip()
+        i = 0
+        while i < len(lines) :
+            line = lines[i].strip()
             if not line or line.startswith('#') :  # Skip empty lines and comments
+                i += 1
                 continue
 
-            # Check if the line matches any allowed command pattern
+            # Check if the line starts a multi-line command (e.g., `pip install -r <(echo "...")`)
+            if line.startswith("pip install -r <(echo") :
+                # Combine the multi-line command into a single block
+                multi_line_command = line
+                i += 1
+                while i < len(lines) and not lines[i].strip().endswith('")') :
+                    multi_line_command += " " + lines[i].strip()
+                    i += 1
+                if i < len(lines) :
+                    multi_line_command += " " + lines[i].strip()
+                    i += 1
+
+                # Validate the multi-line command as a single unit
+                matched = False
+                for pattern , command in allowed_commands.items() :
+                    if re.fullmatch(pattern , multi_line_command) :
+                        matched = True
+                        break
+                assert matched , f"Invalid command or syntax: {multi_line_command}"
+                continue
+
+            # For single-line commands, validate as usual
             matched = False
             for pattern , command in allowed_commands.items() :
                 if re.fullmatch(pattern , line) :
@@ -99,6 +123,7 @@ class sequence_tests_LM():
 
             # Use assert to validate the line
             assert matched , f"Invalid command or syntax: {line}"
+            i += 1
 
         # Ensure `conda create -n self.environment_name` and `conda activate self.environment_name` are present
         assert has_conda_create , f"The script is missing the 'conda create -n {self.environment_name}' command."
@@ -115,7 +140,7 @@ class sequence_tests_LM():
                                  auto_tests:bool = False):
 
         code = extract_code(raw_sequence)
-        save_python_code(code, target_name)
+        save_python_code(code, target_path+target_name)
 
 
         if tests_by_execution:
@@ -162,6 +187,26 @@ if __name__ == "__main__":
         exit 1
     fi
     python main.py
+    pip install -r <(echo "
+    absl-py
+    babel
+    editdistance
+    immutabledict
+    gin-config
+    mesh-tensorflow[transformer] @ git+https://github.com/tensorflow/mesh#egg=mesh-tensorflow
+    nltk
+    numpy
+    pandas<2.0.0
+    rouge-score>=0.1.2
+    sacrebleu
+    scikit-learn
+    scipy
+    sentencepiece
+    seqio-nightly
+    six>=1.14
+    tfds-nightly
+    transformers>=2.7.0
+    ")
     """
 
     # Test the generate_code_environment_tests method

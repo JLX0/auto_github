@@ -89,7 +89,7 @@ class Repo_ML(Repo_base):
 
     def __init__(self, repo_link: str, repo_path: str, storage_path:str, model: str = "gpt-4o-mini") -> None:
         super().__init__(repo_link,repo_path,storage_path, model)
-        self.supported_main_file_types: list[str] = ['.py' , '.json']
+        self.supported_main_file_types: list[str] = ['.py' , '.json', '.gin', 'txt']
         self.supported_environment_file_types: list[str] = ['.yml' , '.yaml']
         self.supported_data_file_types: list[str] = ['.csv' , '.tsv' , '.json']
         # TODO: complete the file files
