@@ -61,16 +61,19 @@ class ReimplementationPromptML(PromptBase):
             if prompt_type=="main_designation":
                 previous_response=self.storage_instance.load_common_info(file_list_main=True, trial_designation=previous_response_trial)
 
+            previous_response=previous_response["file_list"]
+
             prompt_string+=history_string
-            prompt_string+=["Your previous answer is as below:",
-                              previous_response,
-                            "Your goal this time is to suggest different files to examine."]
+            prompt_string+=[f"Your previous answer is as below:\n{previous_response}",
+                            "Your goal this time is to suggest different files to examine. "
+                            "But your suggested files should still be included in the repository"
+                            " (as mentioned in the file structure of the repository) and "
+                            "there can be some overlap with your previous suggestions."]
             if prompt_type=="environment_designation":
                 prompt_string+=["You should consider the traceback results carefully for your answer this time. "]
             if prompt_type=="main_designation":
                 prompt_string+=["You answer this time should at least include the critical files involved the traceback results to examine. "]
-            prompt_string+=["Your answer this time should be different from your previous suggestions, "
-                              "although there can be some overlap. "]
+
         prompt_string+=["Your answer should be a Python list of strings. Your answer should not include any introduction, explanation, or context."]
 
         if prompt_type=="environment_designation":
@@ -160,7 +163,7 @@ class ReimplementationPromptML(PromptBase):
                         "The packages in the repository should be installed in development mode. "
                         "The installation should ignore packages for documentation or GUI. "]
 
-        if self.check_retry("code_environment_raw"):
+        if self.check_retry("environment_code_raw"):
             step , trial , _ , feedback , code = self.storage_instance.load_history()
             history_string = self.history_to_prompts(step , feedback , code)
             prompt_string += history_string
@@ -210,12 +213,14 @@ class ReimplementationPromptML(PromptBase):
 
         prompt_string+=available_packages_prompt(self.environment_name)
 
-        prompt_string+=[f"The programming goal is:\n{self.goal}",
-                        "Your answer can import modules from the repository, "
+        if not self.check_retry("main_code_raw"):
+            prompt_string+=[f"The programming goal is:\n{self.goal}"]
+
+        prompt_string+=["Your answer can import modules from the repository, "
                         "adapt existing code in the repository, utilize installed packages from the Conda environment, "
                         "and incorporate new code. "]
 
-        if self.check_retry("code_main_raw"):
+        if self.check_retry("main_code_raw"):
             step , trial , _ , feedback , code = self.storage_instance.load_history()
             history_string = self.history_to_prompts(step , feedback , code)
             prompt_string += history_string
@@ -273,7 +278,7 @@ class ReimplementationPromptML(PromptBase):
         prompt_string+= history_string
 
         prompt_string+=["Your task is to suggest the next step to take to fix the errors and failures.",
-                        "Available steps are:"
+                        "Available steps are: "
                         "1. 'designate_files_environment': decide which files to look at for "
                         "configuring and setting up external environment. Your answer should be "
                         "this one if the environment setup is incorrect and examining additional "
@@ -283,7 +288,7 @@ class ReimplementationPromptML(PromptBase):
                         "examining additional files for adapting the code from the repository is critical. "
                         "3. 'generate_code_environment': regenerate the shell script for configuring and setting up external environment. "
                         "Your answer should be this one if the environment setup is incorrect but "
-                        "examining additional files for configuring and setting up external environment is not needed."
+                        "examining additional files for configuring and setting up external environment is not needed. "
                         "4. 'generate_code_main': regenerate the Python code for adapting the code from the repository. "
                         "Your answer should be this one if the environment setup is correct and "
                         "examining additional files for adapting the code from the repository is not needed."]

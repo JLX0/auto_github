@@ -25,7 +25,7 @@ class AutoReimplementation:
         storage_path: str = "repos.json",
         target_path: str = None,
         target_name: str = None,
-        external_tests: Callable[[str] , str] = None,
+        external_tests_path: str = None,
     ) -> None:
         self.repo_link = repo_link
         self.repo_path = repo_path
@@ -33,8 +33,9 @@ class AutoReimplementation:
         self.approach = approach
         self.output: Optional[str] = None
         self.overwrite_environment=True
-        self.external_tests=external_tests
+        self.external_tests_path=external_tests_path
         self.target_path=target_path
+        self.target_name=target_name
         self.main_code_path=target_path+target_name
 
         self.base_environment_name="test_env"
@@ -44,18 +45,21 @@ class AutoReimplementation:
         self.code_generation_failure_count={"generate_code_environment":0, "generate_code_main":0}
 
         self.sequence_generation_timeout=180 # in seconds
-        self.sequence_generation_trial_limit=5
+        self.maximum_generation_attempts=5
+        self.maximum_timeout_attempts=3
         self.code_generation_trial_limit=5
         self.environment_designation_file_number_limit=5
-        self.main_designation_file_number_limit=10
+        self.main_designation_file_number_limit=3
         self.environment_designation_file_content_limit=10000 # in token count
         self.main_designation_file_content_limit=10000 # in token count
         self.code_environment_execution_time_limit=300 # in seconds
-        self.code_main_execution_time_limit=600 # in seconds
+        self.code_main_execution_time_limit=60 # in seconds
+        # currently this also sets the time limit for testing main code
 
         self.OpenAI_instance = OpenAI_interface(
             api_key , model=model ,timeout=self.sequence_generation_timeout,
-            maximum_retry=self.sequence_generation_trial_limit , debug=debug)
+            maximum_generation_attempts=self.maximum_generation_attempts ,
+            maximum_timeout_attempts=self.maximum_timeout_attempts,debug=debug)
         self.repo_instance = Repo_ML(repo_link, repo_path, storage_path, model=model)
         self.repo_instance.clone_repo()
         self.prompt_instance = ReimplementationPromptML(model, self.environment_designation_file_number_limit, self.main_designation_file_number_limit,
@@ -63,6 +67,8 @@ class AutoReimplementation:
         self.storage_instance = Storage(storage_path,repo_path)
         self.sequence_tests_LM_instance=sequence_tests_LM(repo_path,storage_path)
         self.executor_instance = executor_ML(repo_path,self.code_environment_execution_time_limit,self.code_main_execution_time_limit)
+
+        self.termination_flag=False
 
 
         self.trials={"environment_designation":0,"main_designation":0,"generate_code_environment":0, "generate_code_main":0}
@@ -79,24 +85,27 @@ class AutoReimplementation:
         this framework supports various generation styles?
         add past histories
         '''
-        while self.step_queues != [] and not self.failure_trigger():
+        self.failure_trigger()
+        while self.step_queues != [] and not self.termination_flag:
             test_status, traceback_results=self.operator()
             if test_status:
                 self.step_queues.pop(0)
             else:
                 self.code_generation_failure_count[self.step_queues[0]]+=1
                 self.arrange_queues()
-        print("--------All steps have been completed!--------")
+        if self.termination_flag:
+            print("--------The process failed due to a termination signal--------")
+        else:
+            print("--------All steps have been completed!--------")
         print("--------Total cost: "+str(self.cost_accumulation)+"USD --------")
 
     def failure_trigger(self):
         if self.code_generation_failure_count["generate_code_environment"] >= self.code_generation_trial_limit:
             print(f"code generation failed for setting up environment for more than {self.code_generation_trial_limit} times, aborting")
-            return True
+            self.termination_flag=True
         if self.code_generation_failure_count["generate_code_main"] >= self.code_generation_trial_limit:
             print(f"code generation failed for adapting the repository for more than {self.code_generation_trial_limit} times, aborting")
-            return True
-        return False
+            self.termination_flag=True
 
     def arrange_queues(self):
 
@@ -140,15 +149,19 @@ class AutoReimplementation:
             trial=self.trials["generate_code_main"]
             print("--------begin generating Python code for adapting the repository--------")
             test_status,traceback_results=self.generate_code_main()
+        if traceback_results==None:
+            traceback_results="N/A"
         print("-----Total cost so far: "+str(self.cost_accumulation)+"USD -----")
         self.storage_instance.add_history(current_step,trial,test_status,traceback_results)
         return test_status,traceback_results
 
     def send_inquiry(self,tests=None):
         if tests:
-            response, cost = self.OpenAI_instance.ask_with_test(self.prompt_instance.prompt , tests, self.sequence_generation_trial_limit)
+            response, cost = self.OpenAI_instance.ask_with_test(self.prompt_instance.prompt , tests)
         else:
             response, cost = self.OpenAI_instance.ask(self.prompt_instance.prompt)
+        if response == "termination_signal":
+            self.termination_flag=True
         self.cost_accumulation += cost
         return response
 
@@ -254,8 +267,7 @@ class AutoReimplementation:
         self.storage_instance.load_info()
         raw_response = self.storage_instance.information[self.repo_path]['main_code_raw'][str(self.trials["generate_code_main"])]
         main_code = self.sequence_tests_LM_instance.generate_code_main_tests(
-            raw_response, self.target_path, self.main_code_path, self.tests_by_execution, self.external_tests, self.auto_tests)
+            raw_response, self.target_path, self.target_name, self.tests_by_execution, self.external_tests_path, self.auto_tests)
         self.storage_instance.add_entries("main_code",main_code,self.trials["generate_code_main"])
 
     #TODO: unify the type of trials?
-    #TODO: tests for situations where retry is triggered

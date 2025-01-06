@@ -85,10 +85,15 @@ class Storage(Storage_base):
         self.information[self.repo_path]["history"].append([step, trial, status, feedback])
 
 
-    def load_history(self,mode="last_one", with_code=True):
+    def load_history(self,mode="last_one_failed", with_code=True):
         self.load_info()
-        if mode=="last_one":
-            target_history=self.information[self.repo_path]["history"][-1]
+        history=self.information[self.repo_path]["history"]
+        target_history=None
+        if mode=="last_one_failed":
+            for entry in reversed(history) :
+                if entry[2] == False :
+                    target_history = entry
+                    break
         step=target_history[0]
         trial=target_history[1]
         status=target_history[2]
@@ -130,7 +135,7 @@ class Storage(Storage_base):
 
 
 if __name__ == "__main__":
-    storage = Storage("info.json" , "repo_path")
+    storage = Storage("repos.json" , "/home/j/experiments/auto_github/sample_repos/bohb")
     storage.add_repo_path()
     storage.add_readme("README.md")
-    print(storage.information)
+    print(storage.get_latest_trial("code_main_raw"))

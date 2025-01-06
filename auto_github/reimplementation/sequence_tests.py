@@ -36,10 +36,10 @@ class sequence_tests_LM():
         assert isinstance(code,bool), f"the response is {code} instead of a boolean"
         return code
 
-    def generate_code_environment_tests(self, raw_sequence):
+    def generate_code_environment_tests(self , raw_sequence) :
         """
         Validate the generated shell script to ensure it only uses allowed commands
-        and contains the required `conda create` and `conda activate` commands.
+        and contains the required `conda create -n self.environment_name` and `conda activate self.environment_name` commands.
 
         Args:
             raw_sequence (str): The raw shell script as a string.
@@ -47,15 +47,17 @@ class sequence_tests_LM():
         Raises:
             AssertionError: If the script contains invalid commands, syntax, or is missing required commands.
         """
-        code = extract_code(raw_sequence, language="bash")
+        code = extract_code(raw_sequence , language="bash")
+
         # Define the allowed commands and their patterns
         allowed_commands = {
-            r'conda create -n \w+ python=\d+\.\d+ -y' : "conda create" ,
+            r'conda create -n \w+ python=[\d\.]+(?:\.\d+)?(?:[\s\S]*?) -y' : "conda create" ,
             r'conda activate \w+' : "conda activate" ,
             r'conda install [\w\s=-]+' : "conda install" ,
-            r'pip install [\w\s=-]+' : "pip install" ,
+            r'pip install(?: -e)? [\w\s\.\/=-]+' : "pip install" ,
+            # Allow for editable installs with -e
             r'python [\w\s\./-]+' : "python" ,
-            r'git clone [\w\s\.\/:@-]+' : "git clone" ,  # Updated pattern
+            r'git clone [\w\s\.\/:@-]+' : "git clone" ,
             r'echo "Setup complete!"' : "echo" ,
             }
 
@@ -77,61 +79,122 @@ class sequence_tests_LM():
             for pattern , command in allowed_commands.items() :
                 if re.fullmatch(pattern , line) :
                     matched = True
-                    # Check if the line contains `conda create` or `conda activate`
-                    if "conda create" in line :
+                    # Check if the line contains `conda create -n self.environment_name`
+                    if f"conda create -n {self.environment_name}" in line :
                         has_conda_create = True
-                    elif "conda activate" in line :
+                    # Check if the line contains `conda activate self.environment_name`
+                    elif f"conda activate {self.environment_name}" in line :
                         has_conda_activate = True
                     break
 
             # Use assert to validate the line
             assert matched , f"Invalid command or syntax: {line}"
 
-        # Ensure `conda create` and `conda activate` are present
-        assert has_conda_create , "The script is missing the 'conda create' command."
-        assert has_conda_activate , "The script is missing the 'conda activate' command."
+        # Ensure `conda create -n self.environment_name` and `conda activate self.environment_name` are present
+        assert has_conda_create , f"The script is missing the 'conda create -n {self.environment_name}' command."
+        assert has_conda_activate , f"The script is missing the 'conda activate {self.environment_name}' command."
         return code
 
-    def generate_code_main_tests(self,
-                                 raw_sequence: str,
+    def generate_code_main_tests(self ,
+                                 raw_sequence: str ,
                                  target_path: str ,
-                                 main_code_path: str,
-                                 tests_by_execution:bool = True,
-                                 external_tests: Callable[[str] , str] = None,
+                                 target_name: str ,
+                                 tests_by_execution:bool = True ,
+                                 external_tests_path: str = None ,
                                  auto_tests:bool = False):
 
         code = extract_code(raw_sequence)
-        save_python_code(code, main_code_path)
+        save_python_code(code, target_name)
 
-        outputs: dict[str , str|None] = {
-            "tests_by_execution_output" : None ,
-            "external_tests_output" : None ,
-            "auto_tests_output" : None
-            }
 
         if tests_by_execution:
-            _ , tests_by_execution_output=self.executor_instance.execute_main_code(target_path,main_code_path,self.environment_name)
-            outputs["tests_by_execution_output"]=tests_by_execution_output
+            return_code , tests_by_execution_output=self.executor_instance.execute_main_code(target_path,target_name,self.environment_name)
+            assert return_code== 0, f"Tests failed, code execution output: {tests_by_execution_output}"
 
-        if external_tests is not None:
+        if external_tests_path is not None:
             print("-----performing external tests-----")
-            external_tests_output = external_tests(code)
-            outputs["external_tests_output"]=external_tests_output
-            # some tests might not require input arguments and directly import from local files?
+
+            return_code, external_test_output=self.executor_instance.execute_main_code(target_path, external_tests_path, environment_name=self.environment_name)
+            assert return_code== 0, f"Tests failed, code execution output: {external_test_output}"
 
         # TODO: implement auto_tests
 
-        if auto_tests or tests_by_execution or external_tests is not None :
-            return code,outputs
-        else:
-            return code
+        return code
 
-    def arrange_queues_tests(self,raw_sequence):
-        print("raw_sequence:",raw_sequence)
-        print("raw_sequence type:",type(raw_sequence))
-        # TODO: there seems to be an error for this test
+    def arrange_queues_tests(self , raw_sequence) :
+
+        # Remove extra single quotes and whitespace, then convert to lowercase
+        raw_sequence = raw_sequence.strip("'\" \n\r\t").lower()
+
         assert (raw_sequence in
-                ["designate_files_environment","designate_files_main","generate_code_environment","generate_code_main"]),\
+                ["designate_files_environment" , "designate_files_main" ,
+                 "generate_code_environment" , "generate_code_main"]) , \
             (f"the response is {raw_sequence} instead one of the following options: "
              f"designate_files_environment,designate_files_main,generate_code_environment,generate_code_main")
+
         return raw_sequence
+
+if __name__ == "__main__":
+    # Create an instance of the sequence_tests_LM class
+    repo_path = "example_repo"
+    environment_name = "myenv"  # Set the environment name
+    test_instance = sequence_tests_LM(repo_path, environment_name=environment_name)
+
+    # Example shell script to test
+    test_script = f"""
+    conda create -n {environment_name} python=3.8 -y
+    conda activate {environment_name}
+    conda install numpy pandas -y
+    pip install -e .
+    pip install requests
+    git clone https://github.com/example/repo.git
+    echo "Setup complete!"
+    """
+
+    # Test the generate_code_environment_tests method
+    try:
+        print("Testing valid script...")
+        validated_code = test_instance.generate_code_environment_tests(test_script)
+        print("Test passed! Validated code:")
+        print(validated_code)
+    except AssertionError as e:
+        print(f"Test failed: {e}")
+
+    # Example of an invalid script (missing conda activate)
+    invalid_script = f"""
+    conda create -n {environment_name} python=3.8 -y
+    conda install numpy pandas -y
+    pip install -e .
+    pip install requests
+    git clone https://github.com/example/repo.git
+    echo "Setup complete!"
+    """
+
+    # Test the generate_code_environment_tests method with an invalid script
+    try:
+        print("\nTesting invalid script (missing conda activate)...")
+        validated_code = test_instance.generate_code_environment_tests(invalid_script)
+        print("Test passed! Validated code:")
+        print(validated_code)
+    except AssertionError as e:
+        print(f"Test failed (expected): {e}")
+
+    # Example of another invalid script (invalid environment name)
+    invalid_script_2 = """
+    conda create -n wrongenv python=3.8 -y
+    conda activate wrongenv
+    conda install numpy pandas -y
+    pip install -e .
+    pip install requests
+    git clone https://github.com/example/repo.git
+    echo "Setup complete!"
+    """
+
+    # Test the generate_code_environment_tests method with another invalid script
+    try:
+        print("\nTesting invalid script (invalid environment name)...")
+        validated_code = test_instance.generate_code_environment_tests(invalid_script_2)
+        print("Test passed! Validated code:")
+        print(validated_code)
+    except AssertionError as e:
+        print(f"Test failed (expected): {e}")

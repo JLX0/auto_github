@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from charset_normalizer import detect
-
 from auto_github.reimplementation.core import AutoReimplementation
 from LLM_utils.inquiry import get_api_key
 import os
-
 
 def delete_file(file_path):
     # Check if the file exists and delete it
@@ -21,9 +18,6 @@ def delete_file(file_path):
 delete_file("/home/j/experiments/auto_github/examples/repos.json")
 delete_file("/home/j/experiments/auto_github/sample_repos/bohb/main_code.py")
 
-def dummy_test(code):
-    print("performing dummy test")
-
 def main() -> None:
     repo_link = "https://github.com/example_user/example_repo.git"  # Replace with your GitHub repo URL
     repo_path = '/home/j/experiments/auto_github/sample_repos/bohb'  # Replace with your local repo path
@@ -35,7 +29,7 @@ def main() -> None:
         repo_link=repo_link,
         repo_path=repo_path,
         debug=True,
-        external_tests=dummy_test,
+        external_tests_path="sample_tests.py",
         target_path="/home/j/experiments/auto_github/sample_repos/",
         target_name="main_code.py"
         )

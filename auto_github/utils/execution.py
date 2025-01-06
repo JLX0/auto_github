@@ -64,20 +64,21 @@ class executor_ML:
 
         return ret_dict.get("return_code", -1), ret_dict.get("result", "No result captured.")
 
-    def execute_main_code_base(self, ret_dict, target_path, main_code_path, environment_name, print_progress=True):
+    def execute_main_code_base(self, ret_dict, target_path, target_name, environment_name, print_progress=True):
         """
         Base function to execute the main code without any time limit.
 
         Args:
             ret_dict: Dictionary to store return values.
             target_path: The target path where the code will be executed.
-            main_code_path: The path to the main code file.
+            target_name: The name of the code file to execute.
             environment_name: The name of the conda environment to activate.
             print_progress: Whether to print progress.
 
         Returns:
             None
         """
+        main_code_path = target_path+target_name
         print("-----executing generated code-----")
         full_script = f"""
         #!/bin/bash
@@ -92,13 +93,13 @@ class executor_ML:
         ret_dict["return_code"] = return_code
         ret_dict["result"] = result
 
-    def execute_main_code(self, target_path, main_code_path, environment_name, print_progress=True):
+    def execute_main_code(self , target_path , target_name , environment_name , print_progress=True):
         """
         Execute the main code with a time limit using overtime_kill.
 
         Args:
             target_path: The target path where the code will be executed.
-            main_code_path: The path to the main code file.
+            target_name: The name of the code file to execute.
             environment_name: The name of the conda environment to activate.
             print_progress: Whether to print progress.
 
@@ -107,7 +108,7 @@ class executor_ML:
         """
         exceeded, ret_dict = overtime_kill(
             target_function=self.execute_main_code_base,
-            target_function_args=(target_path, main_code_path, environment_name, print_progress),
+            target_function_args=(target_path, target_name, environment_name, print_progress),
             time_limit=self.code_main_execution_time_limit,
             ret=True,
         )
