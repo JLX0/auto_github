@@ -15,8 +15,7 @@ def delete_file(file_path):
     else:
         print(f"File '{file_path}' not found.")
 
-delete_file("/examples/repos_t5_worked.json")
-delete_file("/home/j/experiments/auto_github/sample_repos/bohb/main_code.py")
+delete_file("repos.json")
 
 def main() -> None:
     repo_link = "https://github.com/google-research/text-to-text-transfer-transformer.git"  # Replace with your GitHub repo URL

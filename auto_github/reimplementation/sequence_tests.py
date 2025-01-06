@@ -52,11 +52,14 @@ class sequence_tests_LM():
 
         # Define the allowed commands and their patterns
         allowed_commands = {
+            # Allow `conda create -n <any_env_name>` with any postfix commands
             r'conda create -n \w+ .*' : "conda create" ,
-            # Allow any arguments after `conda create -n <env_name>`
-            r'conda activate \w+' : "conda activate" ,  # Allow only `conda activate <env_name>`
-            r'conda install .*' : "conda install" ,  # Allow any arguments after `conda install`
-            r'pip install .*' : "pip install" ,  # Allow any arguments after `pip install`
+            # Allow `conda activate <any_env_name>` with any postfix commands
+            r'conda activate\s+\w+.*' : "conda activate" ,
+            # Allow `conda install` with any arguments, including multi-line commands
+            r'conda install(\s+[^\\]+)*(\s+\\\s*[^\\]+)*' : "conda install" ,
+            # Allow `pip install` with any arguments, including multi-line commands
+            r'pip install(\s+[^\\]+)*(\s+\\\s*[^\\]+)*' : "pip install" ,
             r'python .*' : "python" ,  # Allow any arguments after `python`
             r'git clone .*' : "git clone" ,  # Allow any arguments after `git clone`
             r'echo "Setup complete!"' : "echo" ,  # Exact match for this specific echo command
