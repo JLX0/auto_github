@@ -156,7 +156,7 @@ class ReimplementationPromptML(PromptBase):
                         "In the template:",
                         f"Replace <environment_name> with {self.environment_name}.",
                         "Replace <python_version> with a suitable version of Python.",
-                        "Fill in the script for Step 3: Install external packages for the repository and packages in the repository."
+                        "Fill in the script for Step 4: Install external packages for the repository and packages in the repository."
                         "If the repository has no external packages dependencies, the script can skip installing external packages for the repository. "
                         "If the repository has no packages in itself, the script can skip installing the packages in the repository. "
                         "If the external packages for the repository and the packages in the repository can be installed together, the script should combine the commands. "

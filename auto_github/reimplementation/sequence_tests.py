@@ -38,8 +38,9 @@ class sequence_tests_LM():
 
     def generate_code_environment_tests(self , raw_sequence) :
         """
-        Validate the generated shell script to ensure it only uses allowed commands
-        and contains the required `conda create -n self.environment_name` and `conda activate self.environment_name` commands.
+        Validate the generated shell script to ensure it only uses allowed commands,
+        contains the required `conda create -n self.environment_name` and `conda activate self.environment_name` commands,
+        and checks whether the active environment matches `self.environment_name`.
 
         Args:
             raw_sequence (str): The raw shell script as a string.
@@ -55,10 +56,15 @@ class sequence_tests_LM():
             r'conda activate \w+' : "conda activate" ,
             r'conda install [\w\s=-]+' : "conda install" ,
             r'pip install(?: -e)? [\w\s\.\/=-]+' : "pip install" ,
-            # Allow for editable installs with -e
             r'python [\w\s\./-]+' : "python" ,
             r'git clone [\w\s\.\/:@-]+' : "git clone" ,
             r'echo "Setup complete!"' : "echo" ,
+            r'current_env=\$\(conda info --envs \| grep \'\*\' \| awk \'\{print \$1\}\'\)' : "current_env assignment" ,
+            r'if \[ "\$current_env" != "\w+" \]; then' : "if condition" ,
+            r'echo "Error: The active environment is not \'\w+\'. Please activate the correct environment and rerun the script."' : "error message" ,
+            r'exit 1' : "exit" ,
+            r'fi' : "fi" ,  # Add pattern for 'fi'
+            r'then' : "then" ,  # Add pattern for 'then'
             }
 
         # Split the script into lines
@@ -67,6 +73,7 @@ class sequence_tests_LM():
         # Flags to check if required commands are present
         has_conda_create = False
         has_conda_activate = False
+        has_current_env_check = False
 
         # Iterate through each line and check if it matches any allowed command
         for line in lines :
@@ -85,6 +92,9 @@ class sequence_tests_LM():
                     # Check if the line contains `conda activate self.environment_name`
                     elif f"conda activate {self.environment_name}" in line :
                         has_conda_activate = True
+                    # Check if the line contains the current environment check logic
+                    elif f'if [ "$current_env" != "{self.environment_name}" ]; then' in line :
+                        has_current_env_check = True
                     break
 
             # Use assert to validate the line
@@ -93,6 +103,7 @@ class sequence_tests_LM():
         # Ensure `conda create -n self.environment_name` and `conda activate self.environment_name` are present
         assert has_conda_create , f"The script is missing the 'conda create -n {self.environment_name}' command."
         assert has_conda_activate , f"The script is missing the 'conda activate {self.environment_name}' command."
+        assert has_current_env_check , f"The script is missing the check for the active environment: 'if [ \"$current_env\" != \"{self.environment_name}\" ]; then'."
         return code
 
     def generate_code_main_tests(self ,
@@ -141,20 +152,22 @@ if __name__ == "__main__":
     test_instance = sequence_tests_LM(repo_path, environment_name=environment_name)
 
     # Example shell script to test
-    test_script = f"""
-    conda create -n {environment_name} python=3.8 -y
+    valid_script = f"""
+    #!/bin/bash
+    conda create -n {environment_name} python=3.9 -y
     conda activate {environment_name}
-    conda install numpy pandas -y
-    pip install -e .
-    pip install requests
-    git clone https://github.com/example/repo.git
-    echo "Setup complete!"
+    current_env=$(conda info --envs | grep '*' | awk '{{print $1}}')
+    if [ "$current_env" != "{environment_name}" ]; then
+        echo "Error: The active environment is not '{environment_name}'. Please activate the correct environment and rerun the script."
+        exit 1
+    fi
+    python main.py
     """
 
     # Test the generate_code_environment_tests method
     try:
         print("Testing valid script...")
-        validated_code = test_instance.generate_code_environment_tests(test_script)
+        validated_code = test_instance.generate_code_environment_tests(valid_script)
         print("Test passed! Validated code:")
         print(validated_code)
     except AssertionError as e:

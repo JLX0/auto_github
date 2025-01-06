@@ -86,6 +86,11 @@ class executor_ML:
         cd {target_path}
         eval "$(conda shell.bash hook)"
         conda activate {environment_name}
+        current_env=$(conda info --envs | grep '*' | awk '{{print $1}}')
+        if [ "$current_env" != "{environment_name}" ]; then
+            echo "Error: The active environment is not '{environment_name}'. Please activate the correct environment and rerun the script."
+            exit 1
+        fi
         python {main_code_path}
         """
         return_code, result = execute_bash(full_script, print_progress)
