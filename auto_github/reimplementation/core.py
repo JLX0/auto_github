@@ -48,8 +48,8 @@ class AutoReimplementation:
         self.code_generation_trial_limit=5
         self.environment_designation_file_number_limit=5
         self.main_designation_file_number_limit=10
-        self.environment_designation_file_content_limit=1000 # in token count
-        self.main_designation_file_content_limit=1000 # in token count
+        self.environment_designation_file_content_limit=10000 # in token count
+        self.main_designation_file_content_limit=10000 # in token count
         self.code_environment_execution_time_limit=300 # in seconds
         self.code_main_execution_time_limit=600 # in seconds
 
@@ -58,10 +58,11 @@ class AutoReimplementation:
             maximum_retry=self.sequence_generation_trial_limit , debug=debug)
         self.repo_instance = Repo_ML(repo_link, repo_path, storage_path, model=model)
         self.repo_instance.clone_repo()
-        self.prompt_instance = ReimplementationPromptML(storage_path,repo_path,target_path)
+        self.prompt_instance = ReimplementationPromptML(model, self.environment_designation_file_number_limit, self.main_designation_file_number_limit,
+                 self.environment_designation_file_content_limit, self.main_designation_file_content_limit, storage_path,repo_path,target_path)
         self.storage_instance = Storage(storage_path,repo_path)
         self.sequence_tests_LM_instance=sequence_tests_LM(repo_path,storage_path)
-        self.executor_instance = executor_ML(repo_path)
+        self.executor_instance = executor_ML(repo_path,self.code_environment_execution_time_limit,self.code_main_execution_time_limit)
 
 
         self.trials={"environment_designation":0,"main_designation":0,"generate_code_environment":0, "generate_code_main":0}
@@ -86,6 +87,7 @@ class AutoReimplementation:
                 self.code_generation_failure_count[self.step_queues[0]]+=1
                 self.arrange_queues()
         print("--------All steps have been completed!--------")
+        print("--------Total cost: "+str(self.cost_accumulation)+"USD --------")
 
     def failure_trigger(self):
         if self.code_generation_failure_count["generate_code_environment"] >= self.code_generation_trial_limit:
@@ -138,7 +140,7 @@ class AutoReimplementation:
             trial=self.trials["generate_code_main"]
             print("--------begin generating Python code for adapting the repository--------")
             test_status,traceback_results=self.generate_code_main()
-
+        print("-----Total cost so far: "+str(self.cost_accumulation)+"USD -----")
         self.storage_instance.add_history(current_step,trial,test_status,traceback_results)
         return test_status,traceback_results
 
@@ -175,11 +177,13 @@ class AutoReimplementation:
 
     def designate_files_environment(self):
         self.prompt_instance.designate_files_environment_prompt()
+        self.sequence_tests_LM_instance.set_files_limit(environment_designation_file_number_limit=self.environment_designation_file_number_limit)
         extraction=self.send_inquiry(tests=self.sequence_tests_LM_instance.designate_files_tests)
         self.storage_instance.add_entries("environment_designation" , extraction , self.trials["environment_designation"])
 
     def designate_files_main(self ):
         self.prompt_instance.designate_files_main_prompt()
+        self.sequence_tests_LM_instance.set_files_limit(main_designation_file_number_limit=self.main_designation_file_number_limit)
         extraction=self.send_inquiry(tests=self.sequence_tests_LM_instance.designate_files_tests)
         self.storage_instance.add_entries("main_designation" , extraction , self.trials["main_designation"])
 
@@ -253,7 +257,5 @@ class AutoReimplementation:
             raw_response, self.target_path, self.main_code_path, self.tests_by_execution, self.external_tests, self.auto_tests)
         self.storage_instance.add_entries("main_code",main_code,self.trials["generate_code_main"])
 
-    #TODO: add prompt length and file suggestion number restriction
     #TODO: unify the type of trials?
-    #TODO: add shell script and code execution time limit
     #TODO: tests for situations where retry is triggered

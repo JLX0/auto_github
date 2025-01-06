@@ -2,21 +2,27 @@ from __future__ import annotations
 
 from LLM_utils.prompter import PromptBase
 from LLM_utils.prompter import available_packages_prompt
-
+from LLM_utils.cost import Calculator
 from auto_github.utils.stored_info import Storage
 import os
 
 class ReimplementationPromptML(PromptBase):
     environment_template_path = "/home/j/experiments/auto_github/auto_github/reimplementation/environment_template.sh"
 
-    def __init__(self, storage_path, repo_path, target_path, goal=None) -> None:
+    def __init__(self, model, environment_designation_file_number_limit, main_designation_file_number_limit,
+                 environment_designation_file_content_limit, main_designation_file_content_limit,
+                 storage_path, repo_path, target_path, goal=None) -> None:
 
         self.storage_instance=Storage(storage_path,repo_path)
         self.repo_path=repo_path
         self.target_path=target_path
         self.goal=goal
-
+        self.calculator_instance=Calculator(model=model)
         self.environment_name=None
+        self.environment_designation_file_number_limit=environment_designation_file_number_limit
+        self.main_designation_file_number_limit=main_designation_file_number_limit
+        self.environment_designation_file_content_limit=environment_designation_file_content_limit # in token count
+        self.main_designation_file_content_limit=main_designation_file_content_limit # in token count
 
     def check_retry(self,prompt_type):
         self.storage_instance.load_info()
@@ -65,10 +71,21 @@ class ReimplementationPromptML(PromptBase):
                 prompt_string+=["You answer this time should at least include the critical files involved the traceback results to examine. "]
             prompt_string+=["Your answer this time should be different from your previous suggestions, "
                               "although there can be some overlap. "]
+        prompt_string+=["Your answer should be a Python list of strings. Your answer should not include any introduction, explanation, or context."]
+
+        if prompt_type=="environment_designation":
+            prompt_string += [
+                f"The Python list of strings should contain at most {self.environment_designation_file_number_limit}"
+                f" elements (at most {self.environment_designation_file_number_limit} suggested files"
+                f" for configuring and setting up external environment)."]
+        if prompt_type=="main_designation":
+            prompt_string += [
+                f"The Python list of strings should contain at most {self.main_designation_file_number_limit}"
+                f" elements (at most {self.main_designation_file_number_limit} suggested files"
+                f" for achieving the goal)."]
         prompt_string+=[
-            "Your answer should be a Python list of strings. Your answer should not include any introduction, explanation, or context.",
-            "Here is the Python list of string, with each string representing an the file path (starting with 'repo_root/') and file name of an important file for "+response_header,
-            ]
+            "Here is the Python list of string, with each string representing an the file"
+            " path (starting with 'repo_root/') and file name of an important file for "+response_header,]
 
         self.prompt = PromptBase.list_to_formatted_OpenAI(prompt_string)
 
@@ -93,11 +110,18 @@ class ReimplementationPromptML(PromptBase):
         response_header="achieving the goal:"
         self.designate_files_prompt(repository_structure , goal , repository_information , response_header,"main_designation")
 
-    def file_contents_to_prompts(self, file_list: list[str] , file_contents:dict[str,str]):
+    def file_contents_to_prompts(self, file_list_type: str, file_list: list[str] , file_contents:dict[str,str]):
         file_contents_string=[]
         for file in file_list:
             file_contents_string+=([f"-----File path and file name:{file}-----"])
-            file_contents_string+=([f"File content:\n{file_contents[file]}"])
+            content=file_contents[file]
+            if file_list_type=="generate_code_environment":
+                content=self.calculator_instance.length_limiter([content],self.environment_designation_file_content_limit)
+            if file_list_type=="generate_code_main":
+                content=self.calculator_instance.length_limiter([content],self.main_designation_file_content_limit)
+            file_contents_string+=["File content:"]
+            file_contents_string+=content
+            file_contents_string+=["\n"]
         return file_contents_string
 
     def load_environment_template(self):
@@ -110,7 +134,7 @@ class ReimplementationPromptML(PromptBase):
         loaded_info=self.storage_instance.load_common_info(file_contents=True , repository_structure=True , repository_information=True , file_list_environment=True , trial_designation=trial_environment_designation)
         file_contents, repository_structure,repository_information, file_list = loaded_info['file_contents'], loaded_info['repository_structure'],loaded_info['repository_information'],loaded_info['file_list']
 
-        file_contents_string=self.file_contents_to_prompts(file_list,file_contents)
+        file_contents_string=self.file_contents_to_prompts("generate_code_environment",file_list,file_contents)
         environment_template=self.load_environment_template()
         prompt_string=[
             "Given some information about a Github repository, a file structure of the repository, "
@@ -170,7 +194,7 @@ class ReimplementationPromptML(PromptBase):
         file_contents, repository_structure,repository_information, file_list = loaded_info['file_contents'], loaded_info['repository_structure'],loaded_info['repository_information'],loaded_info['file_list']
 
 
-        file_contents_string=self.file_contents_to_prompts(file_list,file_contents)
+        file_contents_string=self.file_contents_to_prompts("generate_code_main",file_list,file_contents)
         prompt_string=[
             "Given some information about a Github repository, a file structure of the repository, "
             "and a list of important files and file contents of a repository, your task is to "

@@ -7,16 +7,24 @@ from auto_github.utils.execution import executor_ML
 
 
 class sequence_tests_LM():
-    def __init__(self, repo_path, storage_path="repos.json", environment_name=None):
+    def __init__(self, repo_path, storage_path="repos.json", environment_name=None, code_environment_execution_time_limit=300, code_main_execution_time_limit=500):
         self.repo_path = repo_path
         self.storage_instance = Storage(storage_path, repo_path)
-        self.executor_instance = executor_ML(repo_path)
+        self.executor_instance = executor_ML(repo_path,code_environment_execution_time_limit, code_main_execution_time_limit)
         self.environment_name=environment_name
+
+    def set_files_limit(self,environment_designation_file_number_limit=None,main_designation_file_number_limit=None):
+        self.environment_designation_file_number_limit=environment_designation_file_number_limit
+        self.main_designation_file_number_limit=main_designation_file_number_limit
 
     def designate_files_tests(self , raw_sequence):
         self.storage_instance.load_info()
         code=extract_code(raw_sequence,mode="python_object")
         assert isinstance(code,list), f"the response is {code} instead of a Python list"
+        if self.environment_designation_file_number_limit is not None:
+            assert len(code) <= self.environment_designation_file_number_limit, f"the response contains {len(list)} files, but the limit is {self.environment_designation_file_number_limit}"
+        if self.main_designation_file_number_limit is not None:
+            assert len(code) <= self.main_designation_file_number_limit, f"the response contains {len(list)} files, but the limit is {self.main_designation_file_number_limit}"
         for file_name in code:
             assert isinstance(file_name,str), f"the response is {file_name} instead of a string"
             assert file_name in self.storage_instance.information[self.repo_path]['file_contents'], f"the file {file_name} is not in the loaded files"
