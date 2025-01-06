@@ -11,7 +11,7 @@ class ReimplementationPromptML(PromptBase):
 
     def __init__(self, model, environment_designation_file_number_limit, main_designation_file_number_limit,
                  environment_designation_file_content_limit, main_designation_file_content_limit,
-                 storage_path, repo_path, target_path, goal=None) -> None:
+                 feedback_content_limit,storage_path, repo_path, target_path, goal=None) -> None:
 
         self.storage_instance=Storage(storage_path,repo_path)
         self.repo_path=repo_path
@@ -23,6 +23,7 @@ class ReimplementationPromptML(PromptBase):
         self.main_designation_file_number_limit=main_designation_file_number_limit
         self.environment_designation_file_content_limit=environment_designation_file_content_limit # in token count
         self.main_designation_file_content_limit=main_designation_file_content_limit # in token count
+        self.feedback_content_limit=feedback_content_limit
 
     def check_retry(self,prompt_type):
         self.storage_instance.load_info()
@@ -234,6 +235,9 @@ class ReimplementationPromptML(PromptBase):
         self.prompt = PromptBase.list_to_formatted_OpenAI(prompt_string)
 
     def history_to_prompts(self, step, feedback, code, mode="last_one"):
+
+        feedback=self.calculator_instance.length_limiter([feedback],self.feedback_content_limit)
+
         history_string=[]
         if step == "generate_code_environment":
             step_string=("The user encountered some errors and failures in the step to"
@@ -248,7 +252,7 @@ class ReimplementationPromptML(PromptBase):
             history_string.append(f"Here is the {code_name} that failed:")
             history_string.append(code)
             history_string.append(f"Here is the traceback results from executing the {code_name}:")
-            history_string.append(feedback)
+            history_string+=feedback
         return history_string
 
     def arrange_queues_prompt(self):

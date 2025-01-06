@@ -54,6 +54,7 @@ class AutoReimplementation:
         self.main_designation_file_content_limit=10000 # in token count
         self.code_environment_execution_time_limit=300 # in seconds
         self.code_main_execution_time_limit=60 # in seconds
+        self.feedback_content_limit=10000
         # currently this also sets the time limit for testing main code
 
         self.OpenAI_instance = OpenAI_interface(
@@ -63,7 +64,7 @@ class AutoReimplementation:
         self.repo_instance = Repo_ML(repo_link, repo_path, storage_path, model=model)
         self.repo_instance.clone_repo()
         self.prompt_instance = ReimplementationPromptML(model, self.environment_designation_file_number_limit, self.main_designation_file_number_limit,
-                 self.environment_designation_file_content_limit, self.main_designation_file_content_limit, storage_path,repo_path,target_path)
+                 self.environment_designation_file_content_limit, self.main_designation_file_content_limit, self.feedback_content_limit, storage_path,repo_path,target_path)
         self.storage_instance = Storage(storage_path,repo_path)
         self.sequence_tests_LM_instance=sequence_tests_LM(repo_path,storage_path)
         self.executor_instance = executor_ML(repo_path,self.code_environment_execution_time_limit,self.code_main_execution_time_limit)
