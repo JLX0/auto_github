@@ -52,10 +52,10 @@ class sequence_tests_LM():
 
         # Define the allowed commands and their patterns
         allowed_commands = {
-            # Allow `conda create -n <any_env_name>` with any postfix commands
-            r'conda create -n \w+ .*' : "conda create" ,
-            # Allow `conda activate <any_env_name>` with any postfix commands
-            r'conda activate\s+\w+.*' : "conda activate" ,
+            # Allow `conda create -n <self.environment_name>` with any postfix commands
+            rf'conda create -n {self.environment_name} .*' : "conda create" ,
+            # Allow `conda activate <self.environment_name>` with any postfix commands
+            rf'conda activate\s+{self.environment_name}.*' : "conda activate" ,
             # Allow `conda install` with any arguments, including multi-line commands
             r'conda install(\s+[^\\]+)*(\s+\\\s*[^\\]+)*' : "conda install" ,
             # Allow `pip install` with any arguments, including multi-line commands
@@ -64,8 +64,8 @@ class sequence_tests_LM():
             r'git clone .*' : "git clone" ,  # Allow any arguments after `git clone`
             r'echo "Setup complete!"' : "echo" ,  # Exact match for this specific echo command
             r'current_env=\$\(conda info --envs \| grep \'\*\' \| awk \'\{print \$1\}\'\)' : "current_env assignment" ,
-            r'if \[ "\$current_env" != "\w+" \]; then' : "if condition" ,
-            r'echo "Error: The active environment is not \'\w+\'. Please activate the correct environment and rerun the script."' : "error message" ,
+            rf'if \[ "\$current_env" != "{self.environment_name}" \]; then' : "if condition" ,
+            rf'echo "Error: The active environment is not \'{self.environment_name}\'. Please activate the correct environment and rerun the script."' : "error message" ,
             r'exit 1' : "exit" ,
             r'fi' : "fi" ,  # Add pattern for 'fi'
             r'then' : "then" ,  # Add pattern for 'then'
@@ -94,6 +94,27 @@ class sequence_tests_LM():
                 i += 1
                 while i < len(lines) and not lines[i].strip().endswith('")') :
                     multi_line_command += " " + lines[i].strip()
+                    i += 1
+                if i < len(lines) :
+                    multi_line_command += " " + lines[i].strip()
+                    i += 1
+
+                # Validate the multi-line command as a single unit
+                matched = False
+                for pattern , command in allowed_commands.items() :
+                    if re.fullmatch(pattern , multi_line_command) :
+                        matched = True
+                        break
+                assert matched , f"Invalid command or syntax: {multi_line_command}"
+                continue
+
+            # Handle multi-line commands with backslashes
+            if line.endswith('\\') :
+                # Combine the multi-line command into a single block
+                multi_line_command = line
+                i += 1
+                while i < len(lines) and lines[i].strip().endswith('\\') :
+                    multi_line_command += " " + lines[i].strip().rstrip('\\')
                     i += 1
                 if i < len(lines) :
                     multi_line_command += " " + lines[i].strip()
@@ -189,7 +210,7 @@ if __name__ == "__main__":
         echo "Error: The active environment is not '{environment_name}'. Please activate the correct environment and rerun the script."
         exit 1
     fi
-    python main.py
+    python main.py    
     pip install -r <(echo "
     absl-py
     babel
