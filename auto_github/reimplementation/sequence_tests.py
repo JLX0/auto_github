@@ -38,14 +38,15 @@ class sequence_tests_LM():
 
     def generate_code_environment_tests(self, raw_sequence):
         """
-               Validate the generated shell script to ensure it only uses allowed commands.
+        Validate the generated shell script to ensure it only uses allowed commands
+        and contains the required `conda create` and `conda activate` commands.
 
-               Args:
-                   raw_sequence (str): The raw shell script as a string.
+        Args:
+            raw_sequence (str): The raw shell script as a string.
 
-               Raises:
-                   AssertionError: If the script contains invalid commands or syntax.
-               """
+        Raises:
+            AssertionError: If the script contains invalid commands, syntax, or is missing required commands.
+        """
         code = extract_code(raw_sequence, language="bash")
         # Define the allowed commands and their patterns
         allowed_commands = {
@@ -61,6 +62,10 @@ class sequence_tests_LM():
         # Split the script into lines
         lines = code.strip().split('\n')
 
+        # Flags to check if required commands are present
+        has_conda_create = False
+        has_conda_activate = False
+
         # Iterate through each line and check if it matches any allowed command
         for line in lines :
             line = line.strip()
@@ -72,10 +77,19 @@ class sequence_tests_LM():
             for pattern , command in allowed_commands.items() :
                 if re.fullmatch(pattern , line) :
                     matched = True
+                    # Check if the line contains `conda create` or `conda activate`
+                    if "conda create" in line :
+                        has_conda_create = True
+                    elif "conda activate" in line :
+                        has_conda_activate = True
                     break
 
             # Use assert to validate the line
-            assert matched , f"forbidden command or syntax: {line}"
+            assert matched , f"Invalid command or syntax: {line}"
+
+        # Ensure `conda create` and `conda activate` are present
+        assert has_conda_create , "The script is missing the 'conda create' command."
+        assert has_conda_activate , "The script is missing the 'conda activate' command."
         return code
 
     def generate_code_main_tests(self,
