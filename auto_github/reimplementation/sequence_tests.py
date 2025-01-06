@@ -2,6 +2,7 @@ from LLM_utils.inquiry import extract_code
 from LLM_utils.storage import save_python_code
 from auto_github.utils.stored_info import Storage
 from typing import Any,Callable
+import re
 
 from auto_github.utils.execution import executor_ML
 
@@ -36,8 +37,45 @@ class sequence_tests_LM():
         return code
 
     def generate_code_environment_tests(self, raw_sequence):
+        """
+               Validate the generated shell script to ensure it only uses allowed commands.
+
+               Args:
+                   raw_sequence (str): The raw shell script as a string.
+
+               Raises:
+                   AssertionError: If the script contains invalid commands or syntax.
+               """
         code = extract_code(raw_sequence, language="bash")
-        # TODO: complete the tests with asserts
+        # Define the allowed commands and their patterns
+        allowed_commands = {
+            r'conda create -n \w+ python=\d+\.\d+ -y' : "conda create" ,
+            r'conda activate \w+' : "conda activate" ,
+            r'conda install [\w\s=-]+' : "conda install" ,
+            r'pip install [\w\s=-]+' : "pip install" ,
+            r'python [\w\s\./-]+' : "python" ,
+            r'git clone [\w\s\.\/:@-]+' : "git clone" ,  # Updated pattern
+            r'echo "Setup complete!"' : "echo" ,
+            }
+
+        # Split the script into lines
+        lines = code.strip().split('\n')
+
+        # Iterate through each line and check if it matches any allowed command
+        for line in lines :
+            line = line.strip()
+            if not line or line.startswith('#') :  # Skip empty lines and comments
+                continue
+
+            # Check if the line matches any allowed command pattern
+            matched = False
+            for pattern , command in allowed_commands.items() :
+                if re.fullmatch(pattern , line) :
+                    matched = True
+                    break
+
+            # Use assert to validate the line
+            assert matched , f"forbidden command or syntax: {line}"
         return code
 
     def generate_code_main_tests(self,

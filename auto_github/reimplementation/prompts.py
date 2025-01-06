@@ -156,7 +156,7 @@ class ReimplementationPromptML(PromptBase):
                         "If the repository has no external packages dependencies, the script can skip installing external packages for the repository. "
                         "If the repository has no packages in itself, the script can skip installing the packages in the repository. "
                         "If the external packages for the repository and the packages in the repository can be installed together, the script should combine the commands. "
-                        "Available commands for installing external packages for the repository and packages in the repository include conda install, pip install, python3, and git clone. "
+                        "Available commands for installing external packages for the repository and packages in the repository include conda install, pip install, python, and git clone. "
                         "The packages in the repository should be installed in development mode. "
                         "The installation should ignore packages for documentation or GUI. "]
 
