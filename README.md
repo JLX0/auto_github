@@ -11,7 +11,7 @@ Python: >= 3.10
 
 # Installation
 
-`git clone https://github.com/JLX0/LLM_utilities.git`
+`git clone https://github.com/JLX0/auto_github.git`
 
 `cd LLM_utilities`
 
