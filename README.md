@@ -1,4 +1,8 @@
-# Currently under active development, documentations and examples will be added soon
+# Currently under active development
+
+- Documentations and more examples will be added soon
+- Currently, supports machine learning repos that are mainly written in Python and can be setup with `conda` and `pip`
+- Example usage is available
 
 # Auto-Github
 Automatically complete tasks related to Github with LLMs etc.
@@ -8,6 +12,8 @@ Automatically complete tasks related to Github with LLMs etc.
 OS: Linux-based
 
 Python: >= 3.10
+
+`conda` is installed and available
 
 # Installation
 
