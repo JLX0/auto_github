@@ -8,10 +8,9 @@ import os
 
 class ReimplementationPromptML(PromptBase):
     environment_template_path = "/home/j/experiments/auto_github/auto_github/reimplementation/environment_template.sh"
-
     def __init__(self, model, environment_designation_file_number_limit, main_designation_file_number_limit,
                  environment_designation_file_content_limit, main_designation_file_content_limit,
-                 feedback_content_limit,storage_path, repo_path, target_path, goal=None) -> None:
+                 feedback_content_limit,storage_path, repo_path, target_path, hardware_accelerator,goal=None) -> None:
 
         self.storage_instance=Storage(storage_path,repo_path)
         self.repo_path=repo_path
@@ -24,6 +23,8 @@ class ReimplementationPromptML(PromptBase):
         self.environment_designation_file_content_limit=environment_designation_file_content_limit # in token count
         self.main_designation_file_content_limit=main_designation_file_content_limit # in token count
         self.feedback_content_limit=feedback_content_limit
+        self.hardware_accelerator=hardware_accelerator
+
 
     def check_retry(self,prompt_type):
         self.storage_instance.load_info()
@@ -41,15 +42,19 @@ class ReimplementationPromptML(PromptBase):
                                ):
 
         prompt_string = [
-            "Given a programming goal, some information about the repository, and "
-            "a file structure of a Github repository, your task is to designate the files that are "
+            "Given a programming goal, some information about the repository, "
+            "a file structure of a Github repository, and available hardware accelerators, "
+            "your task is to designate the files that are "
             "important to reference to achieve the goal.",
             "Here is the programming goal:" ,
             goal,
             "Here is the information about the repository:",
             repository_information,
             "Here is the file structure of the repository:",
-            repository_structure]
+            repository_structure,
+            f"Here is the list of available hardware accelerators:",
+            f"{self.hardware_accelerator}"
+            ]
 
 
         if self.check_retry(prompt_type):
@@ -140,10 +145,15 @@ class ReimplementationPromptML(PromptBase):
 
         file_contents_string=self.file_contents_to_prompts("generate_code_environment",file_list,file_contents)
         environment_template=self.load_environment_template()
+
+
         prompt_string=[
-            "Given some information about a Github repository, a file structure of the repository, "
-            "and a list of important files and file contents of a repository, your task is to "
-            "create a shell script that configure and set up external environment for the repository and possibly install the packages in the repository if available.",
+            "Given a programming goal, some information about a Github repository, a file structure of the repository, "
+            "a list of important files and file contents of a repository, and available hardware accelerators, your task is to "
+            "create a shell script that configure and set up external environment for utilizing the repository to achieve the programming goal "
+            "and possibly install the packages in the repository if available.",
+            "Here is the programming goal:" ,
+            self.goal ,
             "Here is the information about the repository:",
             repository_information,
             "Here is the file structure of the repository:",
@@ -151,6 +161,8 @@ class ReimplementationPromptML(PromptBase):
             "The working directory for the shell script is the repository's root directory (repo_root)",
             "Here is a list of important files and file contents of the repository:"]
         prompt_string+=file_contents_string
+        prompt_string+=[f"Here is the list of available hardware accelerators:",
+                        f"{self.hardware_accelerator}"]
         prompt_string+=["Here is the template for the shell script:",
                         environment_template,
                         "In the template:",
@@ -161,14 +173,15 @@ class ReimplementationPromptML(PromptBase):
                         "If the repository has no packages in itself, the script can skip installing the packages in the repository. "
                         "If the external packages for the repository and the packages in the repository can be installed together, the script should combine the commands. "
                         "Available commands for installing external packages for the repository and packages in the repository include conda install, pip install, python, and git clone. "
-                        "The packages in the repository should be installed in development mode. "
+                        "The packages in the repository should be installed in development mode."
+                        "Each package to be installed should consider the available hardware accelerators. For example, install the GPU-versions of the packages if GPU is available."
                         "The installation should ignore packages for documentation or GUI. "]
 
         if self.check_retry("environment_code_raw"):
             step , trial , _ , feedback , code = self.storage_instance.load_history()
             history_string = self.history_to_prompts(step , feedback , code)
             prompt_string += history_string
-            prompt_string += ["Your goal is to generate a different shell script for configuring and setting up external environment.",
+            prompt_string += ["Your goal is to generate a different shell script for configuring and setting up external environment to achieve the programming goal.",
                               "You should consider the traceback results and the list of important files and file contents of the repository for your answer. ",
                               "The shell script in your answer should be different from the shell script that failed" ]
 
@@ -183,13 +196,23 @@ class ReimplementationPromptML(PromptBase):
         self.storage_instance.load_info()
         script = self.storage_instance.information[self.repo_path]['environment_code'][str(trial_designation)]
         prompt_string=[
-            "Given a shell script, and the execution output of the shell script for setting up and configuring the environment of a project"
-            ", your task is to classify if the environment was set up successfully without errors or failures or not.",
+            "Given programing goal, a shell script, available hardware accelerators, and the execution"
+            " output of the shell script for setting up and configuring the environment of a project"
+            ", your task is to classify if the environment was set up successfully"
+            " for the programming goal.",
+            "Here is the programming goal:",
+            self.goal,
             "Here is the shell script:",
             script,
+            "Here is the list of available hardware accelerators:",
+            f"{self.hardware_accelerator}",
             "Here is the execution output of the shell script:",
             execution_output,
-            "You could ignore non-critical warnings",
+            "You should check: 1. whether there is any errors or failures in the process. "
+            "2. whether there are any packages that have versions for utilizing efficient hardware accelerators "
+            "but are installed with the versions that do not utilize the accelerators, such as GPU (if available)."
+            "3. any timeout during installation or downloading of packages. ",
+            "You should ignore: non-critical warnings.",
             "Your answer should be a Python boolean value (True or False). Your answer should not include any introduction, explanation, or context.",
             "Here is the Python boolean value:"]
         self.prompt = PromptBase.list_to_formatted_OpenAI(prompt_string)
@@ -202,7 +225,8 @@ class ReimplementationPromptML(PromptBase):
         file_contents_string=self.file_contents_to_prompts("generate_code_main",file_list,file_contents)
         prompt_string=[
             "Given some information about a Github repository, a file structure of the repository, "
-            "and a list of important files and file contents of a repository, your task is to "
+            "a list of important files and file contents of a repository, the installed packages in the environment, "
+            "and available hardware accelerators, your task is to "
             "create Python code that satisfies a programming goal based on the packages and modules in the repository."
             "Here is the information about the repository:",
             repository_information,
@@ -214,13 +238,15 @@ class ReimplementationPromptML(PromptBase):
         prompt_string+=file_contents_string
 
         prompt_string+=available_packages_prompt(self.environment_name)
+        prompt_string+=[f"Here is the list of available hardware accelerators:",
+                        f"{self.hardware_accelerator}"]
 
         if not self.check_retry("main_code_raw"):
             prompt_string+=[f"The programming goal is:\n{self.goal}"]
 
         prompt_string+=["Your answer can import modules from the repository, "
                         "adapt existing code in the repository, utilize installed packages from the Conda environment, "
-                        "and incorporate new code. "]
+                        "and incorporate new code. Your answer should utilize the available hardware accelerators, such as GPU (if available)).",]
 
         if self.check_retry("main_code_raw"):
             step , trial , _ , feedback , code = self.storage_instance.load_history()

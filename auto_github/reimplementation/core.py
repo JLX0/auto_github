@@ -26,6 +26,7 @@ class AutoReimplementation:
         target_path: str = None,
         target_name: str = None,
         external_tests_path: str = None,
+        hardware_accelerator: list[str] = ["CPU}" , "(CUDA-enabled) GPU"]
     ) -> None:
         self.repo_link = repo_link
         self.repo_path = repo_path
@@ -37,6 +38,7 @@ class AutoReimplementation:
         self.target_path=target_path
         self.target_name=target_name
         self.main_code_path=target_path+target_name
+        self.hardware_accelerator=hardware_accelerator
 
         self.base_environment_name="test_env"
         self.tests_by_execution=True
@@ -51,10 +53,11 @@ class AutoReimplementation:
         self.environment_designation_file_number_limit=5
         self.main_designation_file_number_limit=5
         self.environment_designation_file_content_limit=10000 # in token count
-        self.main_designation_file_content_limit=10000 # in token count
+        self.main_designation_file_content_limit=20000 # in token count
         self.code_environment_execution_time_limit=600 # in seconds
         self.code_main_execution_time_limit=300 # in seconds
         self.feedback_content_limit=10000
+
         # currently this also sets the time limit for testing main code
 
         self.OpenAI_instance = OpenAI_interface(
@@ -64,7 +67,8 @@ class AutoReimplementation:
         self.repo_instance = Repo_ML(repo_link, repo_path, storage_path, model=model)
         self.repo_instance.clone_repo()
         self.prompt_instance = ReimplementationPromptML(model, self.environment_designation_file_number_limit, self.main_designation_file_number_limit,
-                 self.environment_designation_file_content_limit, self.main_designation_file_content_limit, self.feedback_content_limit, storage_path,repo_path,target_path)
+                 self.environment_designation_file_content_limit, self.main_designation_file_content_limit,
+                 self.feedback_content_limit, storage_path,repo_path,target_path, hardware_accelerator=self.hardware_accelerator)
         self.storage_instance = Storage(storage_path,repo_path)
         self.sequence_tests_LM_instance=sequence_tests_LM(repo_path,storage_path)
         self.executor_instance = executor_ML(repo_path,self.code_environment_execution_time_limit,self.code_main_execution_time_limit)

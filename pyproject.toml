@@ -44,7 +44,8 @@ dependencies = [
   "packaging>=20.0",
   "tqdm",
   "PyYAML",
-  "requests"
+  "requests",
+  "LLM_utils @ git+https://github.com/JLX0/LLM_utilities.git"
 ]
 
 
