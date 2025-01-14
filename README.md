@@ -19,3 +19,10 @@ Python: >= 3.10
 
 2. `pip install .` (for ordinary installation)
 
+# Usage
+
+First, fill in your API keys for LLMs with your actual keys in `key.json`  
+
+Then, see `examples` (more will be added soon)
+
+
