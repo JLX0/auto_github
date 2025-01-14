@@ -1,7 +1,7 @@
 # Currently under active development, documentations and examples will be added soon
 
 # Auto-Github
-Automatically complete tasks related to Github with AI
+Automatically complete tasks related to Github with LLMs etc.
 
 # Requirements
 
@@ -13,7 +13,7 @@ Python: >= 3.10
 
 `git clone https://github.com/JLX0/auto_github.git`
 
-`cd LLM_utilities`
+`cd auto_github`
 
 1. `pip install -e .` (for installation in editable mode)
 
