@@ -19,7 +19,7 @@ delete_file("repos.json")
 
 def main() -> None:
     repo_link = "https://github.com/google-research/text-to-text-transfer-transformer.git"  # Replace with your GitHub repo URL
-    repo_path = '/home/j/experiments/auto_github/sample_repos/t5'  # Replace with your local repo path
+    repo_path = 'sample_repos/t5'  # Replace with your local repo path
 
     key = get_api_key("../", "DeepSeek")
     auto_reimplementation_instance=AutoReimplementation(

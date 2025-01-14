@@ -7,7 +7,12 @@ from auto_github.utils.stored_info import Storage
 import os
 
 class ReimplementationPromptML(PromptBase):
-    environment_template_path = "/home/j/experiments/auto_github/auto_github/reimplementation/environment_template.sh"
+    module_dir = os.path.dirname(os.path.abspath(__file__))
+
+    template_relative_path = "environment_template.sh"
+
+    environment_template_path = os.path.join(module_dir , template_relative_path)
+
     def __init__(self, model, environment_designation_file_number_limit, main_designation_file_number_limit,
                  environment_designation_file_content_limit, main_designation_file_content_limit,
                  feedback_content_limit,storage_path, repo_path, target_path, hardware_accelerator,goal=None) -> None:
